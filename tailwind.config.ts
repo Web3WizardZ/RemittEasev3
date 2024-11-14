@@ -1,4 +1,4 @@
-import type { Config } from 'tailwindcss';
+import type { Config } from 'tailwindcss'
 
 const config: Config = {
   darkMode: ["class"],
@@ -16,6 +16,62 @@ const config: Config = {
         "2xl": "1400px",
       },
     },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "#000000", // Pure black
+          foreground: "#FFFFFF", // Pure white
+          muted: "#333333", // Slightly lighter black
+          hover: "#1a1a1a", // Very dark gray for hover states
+        },
+        secondary: {
+          DEFAULT: "#4B4B4B", // Dark gray
+          foreground: "#FFFFFF",
+          muted: "#666666",
+          hover: "#5A5A5A",
+        },
+        destructive: {
+          DEFAULT: "#880000", // Dark red
+          foreground: "#FFFFFF",
+          muted: "#A50000",
+        },
+        muted: {
+          DEFAULT: "#F5F5F5", // Light gray
+          foreground: "#666666",
+        },
+        accent: {
+          DEFAULT: "#1a1a1a",
+          foreground: "#FFFFFF",
+        },
+        card: {
+          DEFAULT: "#FFFFFF",
+          foreground: "#000000",
+        },
+      },
+      borderRadius: {
+        lg: "0.5rem",
+        md: "0.4rem",
+        sm: "0.3rem",
+      },
+      boxShadow: {
+        'sharp': '4px 4px 0px #000000',
+        'sharp-sm': '2px 2px 0px #000000',
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+}
+// tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  darkMode: ["class"],
+  content: ["./src/**/*.{ts,tsx}"],
+  theme: {
     extend: {
       colors: {
         border: "hsl(var(--border))",
@@ -52,19 +108,14 @@ const config: Config = {
           foreground: "hsl(var(--card-foreground))",
         },
       },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
       keyframes: {
         "accordion-down": {
-          from: { height: '0' },
+          from: { height: 0 },
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: '0' },
+          to: { height: 0 },
         },
       },
       animation: {
@@ -74,6 +125,6 @@ const config: Config = {
     },
   },
   plugins: [require("tailwindcss-animate")],
-};
+}
 
-export default config;
+export default config

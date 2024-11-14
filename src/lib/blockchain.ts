@@ -1,9 +1,12 @@
 import { ethers } from 'ethers';
+import { JsonRpcProvider } from '@ethersproject/providers';
+import { formatEther, formatUnits, parseEther } from '@ethersproject/units';
+import { isAddress } from '@ethersproject/address';
 
 export interface Transaction {
   hash: string;
   from: string;
-  to: string | null | undefined;  // Updated to include undefined
+  to: string | null | undefined;
   value: string;
   timestamp: string;
   status: 'pending' | 'completed' | 'failed';
@@ -12,7 +15,7 @@ export interface Transaction {
 export interface TransactionDetails {
   hash: string;
   from: string;
-  to: string | null | undefined;  // Updated to include undefined
+  to: string | null | undefined;
   value: string;
   timestamp: string;
   status: 'pending' | 'completed' | 'failed';
@@ -21,7 +24,7 @@ export interface TransactionDetails {
   fee?: string;
 }
 
-let provider: ethers.providers.JsonRpcProvider | null = null;
+let provider: JsonRpcProvider | null = null;
 
 export const getProvider = () => {
   if (!provider) {
@@ -29,7 +32,7 @@ export const getProvider = () => {
     if (!providerUrl) {
       throw new Error('Blockchain provider URL not configured');
     }
-    provider = new ethers.providers.JsonRpcProvider(providerUrl);
+    provider = new JsonRpcProvider(providerUrl);
   }
   return provider;
 };
@@ -38,7 +41,7 @@ export const getBalance = async (address: string): Promise<string> => {
   try {
     const provider = getProvider();
     const balance = await provider.getBalance(address);
-    return ethers.utils.formatEther(balance);
+    return formatEther(balance);
   } catch (error) {
     console.error('Error fetching balance:', error);
     return '0.00';
@@ -49,11 +52,9 @@ export const getTransactionHistory = async (address: string): Promise<Transactio
   try {
     const provider = getProvider();
     
-    // Get the latest block number
     const latestBlock = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, latestBlock - 10000); // Last 10000 blocks
+    const fromBlock = Math.max(0, latestBlock - 10000);
 
-    // Get transactions where the address is either sender or receiver
     const filter = {
       fromBlock,
       toBlock: 'latest',
@@ -76,8 +77,8 @@ export const getTransactionHistory = async (address: string): Promise<Transactio
       processedTxs.push({
         hash: tx.hash,
         from: tx.from,
-        to: tx.to || null,  // Convert undefined to null
-        value: ethers.utils.formatEther(tx.value),
+        to: tx.to || null,
+        value: formatEther(tx.value),
         timestamp: new Date(block.timestamp * 1000).toISOString(),
         status: receipt?.status === 1 ? 'completed' : receipt ? 'failed' : 'pending'
       });
@@ -105,13 +106,13 @@ export const getTransactionDetails = async (txHash: string): Promise<Transaction
     return {
       hash: tx.hash,
       from: tx.from,
-      to: tx.to || null,  // Convert undefined to null
-      value: ethers.utils.formatEther(tx.value),
+      to: tx.to || null,
+      value: formatEther(tx.value),
       timestamp: new Date(block.timestamp * 1000).toISOString(),
       status: receipt?.status === 1 ? 'completed' : receipt ? 'failed' : 'pending',
-      gasPrice: ethers.utils.formatUnits(tx.gasPrice || 0, 'gwei'),
+      gasPrice: formatUnits(tx.gasPrice || '0', 'gwei'),
       gasUsed: receipt ? receipt.gasUsed.toString() : undefined,
-      fee: receipt ? ethers.utils.formatEther(receipt.gasUsed.mul(tx.gasPrice || 0)) : undefined
+      fee: receipt ? formatEther(receipt.gasUsed.mul(tx.gasPrice || '0')) : undefined
     };
   } catch (error) {
     console.error('Error fetching transaction details:', error);
@@ -126,7 +127,7 @@ export const estimateGas = async (
 ): Promise<{ gasLimit: string; gasPrice: string; estimatedFee: string }> => {
   try {
     const provider = getProvider();
-    const valueWei = ethers.utils.parseEther(value);
+    const valueWei = parseEther(value);
     
     const [gasLimit, gasPrice] = await Promise.all([
       provider.estimateGas({
@@ -141,8 +142,8 @@ export const estimateGas = async (
 
     return {
       gasLimit: gasLimit.toString(),
-      gasPrice: ethers.utils.formatUnits(gasPrice, 'gwei'),
-      estimatedFee: ethers.utils.formatEther(estimatedFee)
+      gasPrice: formatUnits(gasPrice, 'gwei'),
+      estimatedFee: formatEther(estimatedFee)
     };
   } catch (error) {
     console.error('Error estimating gas:', error);
@@ -162,7 +163,7 @@ export const sendTransaction = async (
     
     const tx = await wallet.sendTransaction({
       to,
-      value: ethers.utils.parseEther(value)
+      value: parseEther(value)
     });
 
     return { hash: tx.hash };
@@ -174,7 +175,7 @@ export const sendTransaction = async (
 
 export const validateAddress = (address: string): boolean => {
   try {
-    return ethers.utils.isAddress(address);
+    return isAddress(address);
   } catch {
     return false;
   }

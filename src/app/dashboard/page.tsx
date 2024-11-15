@@ -1,11 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ethers } from 'ethers';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { 
   BarChart, Bar, 
   LineChart, Line, 
@@ -15,14 +13,14 @@ import {
   PieChart, Pie, Cell,
   Legend
 } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  Activity, Wallet, ArrowUpRight, ArrowDownRight, RefreshCw,
-  Send, Banknote, Download, Upload, CreditCard, AlertCircle,
-  Landmark, TrendingUp, History, Settings, ChevronRight,
-  Clock, DollarSign, PieChart as PieChartIcon, BarChart as BarChartIcon,
-  Zap, Shield, Bell
-} from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,9 +30,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
+} from '@/components/ui/alert-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,15 +38,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Progress } from "@/components/ui/progress";
+} from '@/components/ui/dropdown-menu';
+import { 
+  Activity, Send, ArrowUpRight, ArrowDownRight, 
+  RefreshCw, Settings, PieChart as PieChartIcon, 
+  BarChart as BarChartIcon, History, Zap, Shield,
+  Bell, DollarSign, Upload, Download
+} from 'lucide-react';
 
+// Types
 interface Transaction {
   hash: string;
   from: string;
-  to: string | null;
+  to: string | null;  // Changed from string | null | undefined
   value: string;
   timestamp: string;
   status: 'pending' | 'completed' | 'failed';
@@ -68,38 +68,37 @@ interface UserProfile {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-export default function DashboardPage() {
+const pieData = [
+  { name: 'Sent', value: 400 },
+  { name: 'Received', value: 300 },
+  { name: 'Pending', value: 100 },
+  { name: 'Failed', value: 50 }
+];
+
+const weeklyData = [
+  { name: 'Mon', sent: 4, received: 2.4 },
+  { name: 'Tue', sent: 3, received: 1.3 },
+  { name: 'Wed', sent: 2, received: 9.5 },
+  { name: 'Thu', sent: 2.7, received: 3.5 },
+  { name: 'Fri', sent: 4.8, received: 5 },
+  { name: 'Sat', sent: 3.1, received: 2.1 },
+  { name: 'Sun', sent: 5.5, received: 3.2 }
+];
+
+export default function DashboardPage()  {
   const router = useRouter();
   const { toast } = useToast();
+  
+  // State
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [balance, setBalance] = useState<string>('0');
   const [convertedBalance, setConvertedBalance] = useState<string>('0');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [chartData, setChartData] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showNetworkError, setShowNetworkError] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
   const [notificationCount, setNotificationCount] = useState(3);
   const [progress, setProgress] = useState(0);
-
-  const pieData = [
-    { name: 'Sent', value: 400 },
-    { name: 'Received', value: 300 },
-    { name: 'Pending', value: 100 },
-    { name: 'Failed', value: 50 }
-  ];
-
-  const weeklyData = [
-    { name: 'Mon', sent: 4, received: 2.4 },
-    { name: 'Tue', sent: 3, received: 1.3 },
-    { name: 'Wed', sent: 2, received: 9.5 },
-    { name: 'Thu', sent: 2.7, received: 3.5 },
-    { name: 'Fri', sent: 4.8, received: 5 },
-    { name: 'Sat', sent: 3.1, received: 2.1 },
-    { name: 'Sun', sent: 5.5, received: 3.2 }
-  ];
 
   // Action handlers
   const handleDeposit = () => router.push('/deposit');
@@ -117,11 +116,11 @@ export default function DashboardPage() {
         throw new Error('Blockchain provider URL not configured');
       }
 
-      const provider = new ethers.JsonRpcProvider(providerUrl);
+      const provider = new ethers.providers.JsonRpcProvider(providerUrl);
       
       // Fetch balance
       const rawBalance = await provider.getBalance(profile.walletAddress);
-      const formattedBalance = ethers.formatEther(rawBalance);
+      const formattedBalance = ethers.utils.formatEther(rawBalance);
       setBalance(formattedBalance);
 
       // Simulate some progress
@@ -142,14 +141,14 @@ export default function DashboardPage() {
       for (const log of logs.slice(0, 5)) {
         const tx = await provider.getTransaction(log.transactionHash);
         if (!tx) continue;
-
+    
         const receipt = await provider.getTransactionReceipt(log.transactionHash);
         
         processedTxs.push({
           hash: tx.hash,
           from: tx.from,
-          to: tx.to,
-          value: ethers.formatEther(tx.value),
+          to: tx.to ?? null, // Use nullish coalescing to handle undefined
+          value: ethers.utils.formatEther(tx.value),
           timestamp: new Date().toISOString(),
           status: receipt?.status ? 'completed' : 'failed'
         });
@@ -157,15 +156,8 @@ export default function DashboardPage() {
 
       setTransactions(processedTxs);
 
-      // Update chart data
-      const newChartData = processedTxs.map(tx => ({
-        date: new Date(tx.timestamp).toLocaleDateString(),
-        value: parseFloat(tx.value)
-      }));
-      setChartData(newChartData);
-
-    } catch (error) {
-      console.error('Error fetching data:', error);
+    } catch (err) {
+      console.error('Error fetching data:', err);
       setShowNetworkError(true);
     } finally {
       setRefreshing(false);
@@ -184,7 +176,6 @@ export default function DashboardPage() {
       });
     }, 500);
   };
-
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
@@ -199,11 +190,10 @@ export default function DashboardPage() {
         simulateTransactionProgress();
       } catch (error) {
         console.error('Dashboard initialization error:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load dashboard');
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to load dashboard data"
+          description: error instanceof Error ? error.message : 'Failed to load dashboard'
         });
       } finally {
         setLoading(false);
@@ -352,7 +342,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
       {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Button
@@ -383,7 +372,7 @@ export default function DashboardPage() {
           onClick={handleReceive}
           className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-purple-50 hover:bg-purple-100 text-purple-700"
         >
-          <CreditCard className="w-6 h-6" />
+          <Download className="w-6 h-6" />
           <span>Receive</span>
         </Button>
       </div>
@@ -547,7 +536,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="analytics">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Gas Analysis */}
@@ -558,7 +546,10 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
+                  <LineChart data={transactions.map(tx => ({
+                    date: new Date(tx.timestamp).toLocaleDateString(),
+                    value: parseFloat(tx.value)
+                  }))}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" />
                     <YAxis />
@@ -661,3 +652,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

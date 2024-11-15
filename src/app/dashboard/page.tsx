@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+
 import { 
   BarChart, Bar, 
   LineChart, Line, 

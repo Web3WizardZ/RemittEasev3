@@ -1,15 +1,20 @@
-// next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  eslint: {
-    ignoreDuringBuilds: true, // This will allow the build to continue despite ESLint warnings
+  swcMinify: true,
+  // Add any required rewrites or redirects here
+  async redirects() {
+    return [
+      {
+        source: '/home',
+        destination: '/',
+        permanent: true,
+      },
+    ];
   },
-  typescript: {
-    ignoreBuildErrors: false, // Keep this false to catch actual TypeScript errors
-  },
+  // Add image domains if needed
   images: {
-    domains: ['assets.moonpay.com'], // Add any domains you're loading images from
+    domains: ['your-domain.com'],
   },
 }
 

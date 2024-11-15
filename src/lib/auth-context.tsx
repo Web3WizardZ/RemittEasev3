@@ -1,65 +1,87 @@
-"use client";
+// src/lib/auth-context.tsx
+'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
 interface User {
-  id?: string;
-  walletAddress: string;
+  id: string;
   name?: string;
   email?: string;
+  walletAddress: string;
 }
 
 interface AuthContextType {
   user: User | null;
+  isAuthenticated: boolean;
   login: (userData: User) => void;
   logout: () => void;
-  isAuthenticated: boolean;
-  loading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isAuthenticated: false,
+  login: () => {},
+  logout: () => {},
+});
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
-  useEffect(() => {
-    // Check local storage for user info
-    const storedUser = localStorage.getItem('userInfo');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+  const login = useCallback((userData: User) => {
+    setUser(userData);
   }, []);
 
-  const login = (userData: User) => {
-    setUser(userData);
-    localStorage.setItem('userInfo', JSON.stringify(userData));
-  };
+  const logout = useCallback(async () => {
+    try {
+      // Call logout API endpoint
+      await fetch('/api/auth/login', {
+        method: 'DELETE',
+      });
+      
+      // Clear user data
+      setUser(null);
+      
+      // Redirect to home page
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  }, []);
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('userInfo');
-    router.push('/');
+  // Initialize auth state from session if available
+  React.useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/login');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.session) {
+            setUser(data.session);
+          }
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      }
+    };
+
+    initAuth();
+  }, []);
+
+  const value = {
+    user,
+    isAuthenticated: !!user,
+    login,
+    logout,
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        login, 
-        logout, 
-        isAuthenticated: !!user,
-        loading 
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 }
 
+// Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

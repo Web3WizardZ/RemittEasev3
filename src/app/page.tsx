@@ -46,6 +46,7 @@ import { MoonPayWidget } from '@/components/moonpay-widget';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import { loginWithWallet } from '@/lib/wallet';
+
 // Types
 interface WalletInfo {
   address: string;
@@ -117,6 +118,7 @@ export default function RemittEaseApp() {
       secretKey: '',
     },
   });
+
   const handleCopyToClipboard = async (text: string, description: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -193,13 +195,6 @@ export default function RemittEaseApp() {
         seed: result.wallet.seed,
       });
 
-      localStorage.setItem('userInfo', JSON.stringify({
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
-        walletAddress: result.wallet.address,
-      }));
-
       toast({
         title: "Wallet Created Successfully",
         description: "Please save your backup information securely!",
@@ -218,7 +213,6 @@ export default function RemittEaseApp() {
     }
   };
 
-  // In your page.tsx, update handleAccessWallet:
   const handleAccessWallet = async (data: ExistingUserForm) => {
     try {
       setIsLoading(true);
@@ -259,180 +253,180 @@ export default function RemittEaseApp() {
       setIsLoading(false);
     }
   };
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="container mx-auto px-4 py-8">
+        {/* Hero Section */}
+        <div className="flex flex-col items-center mb-16 text-center">
+          <img 
+            src="/remittease-logo.png"
+            alt="RemittEase"
+            className="h-20 w-auto mb-8"
+          />
+          <h1 className="text-4xl font-bold text-black mb-4">
+            Global Money Transfer Simplified
+          </h1>
+          <p className="text-lg text-gray-600 max-w-2xl">
+            Fast, secure, and affordable cross-border transfers powered by blockchain technology
+          </p>
+        </div>
 
-  return (<div className="min-h-screen bg-white">
-    <div className="container mx-auto px-4 py-8">
-      {/* Hero Section */}
-      <div className="flex flex-col items-center mb-16 text-center">
-        <img 
-          src="/remittease-logo.png"
-          alt="RemittEase"
-          className="h-20 w-auto mb-8"
-          /*priority="true"*/
-        />
-        <h1 className="text-4xl font-bold text-black mb-4">
-          Global Money Transfer Simplified
-        </h1>
-        <p className="text-lg text-gray-600 max-w-2xl">
-          Fast, secure, and affordable cross-border transfers powered by blockchain technology
-        </p>
-      </div>
-
-      {/* Main Card */}
-      <Card className="max-w-4xl mx-auto border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div>
-              <CardTitle className="text-2xl text-center md:text-left">
-                Get Started with RemittEase
-              </CardTitle>
-              <CardDescription className="text-center md:text-left">
-                Create or access your wallet to start sending money globally
-              </CardDescription>
-            </div>
-            {/* Stats Section */}
-            <div className="flex gap-8 mt-4 md:mt-0">
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Supported Countries</p>
-                <p className="text-2xl font-bold text-black">150+</p>
+        {/* Main Card */}
+        <Card className="max-w-4xl mx-auto border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <CardHeader>
+            <div className="flex flex-col md:flex-row justify-between items-center">
+              <div>
+                <CardTitle className="text-2xl text-center md:text-left">
+                  Get Started with RemittEase
+                </CardTitle>
+                <CardDescription className="text-center md:text-left">
+                  Create or access your wallet to start sending money globally
+                </CardDescription>
               </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Processing Time</p>
-                <p className="text-2xl font-bold text-black">≈2min</p>
+              {/* Stats Section */}
+              <div className="flex gap-8 mt-4 md:mt-0">
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Supported Countries</p>
+                  <p className="text-2xl font-bold text-black">150+</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Processing Time</p>
+                  <p className="text-2xl font-bold text-black">≈2min</p>
+                </div>
               </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="new-user" className="space-y-6">
-            <TabsList className="grid grid-cols-2 w-full p-1 bg-gray-100 rounded-md">
-              <TabsTrigger 
-                value="new-user" 
-                className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md transition-all duration-200"
-              >
-                <div className="flex items-center gap-2 py-1">
-                  <User className="w-4 h-4" />
-                  New User
-                </div>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="existing-user" 
-                className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md transition-all duration-200"
-              >
-                <div className="flex items-center gap-2 py-1">
-                  <Wallet className="w-4 h-4" />
-                  Existing User
-                </div>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="new-user">
-              <Form {...newUserForm}>
-                <form 
-                  onSubmit={newUserForm.handleSubmit(handleCreateWallet)} 
-                  className="space-y-6"
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="new-user" className="space-y-6">
+              <TabsList className="grid grid-cols-2 w-full p-1 bg-gray-100 rounded-md">
+                <TabsTrigger 
+                  value="new-user" 
+                  className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md transition-all duration-200"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={newUserForm.control}
-                      name="fullName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-black">Full Name</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="Enter your full name" 
-                              {...field} 
-                              disabled={isLoading}
-                              className="border-2 border-gray-200 focus:border-black transition-colors focus:ring-black"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={newUserForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-black">Email Address</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="email" 
-                              placeholder="your@email.com" 
-                              {...field} 
-                              disabled={isLoading}
-                              className="border-2 border-gray-200 focus:border-black transition-colors focus:ring-black"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <div className="flex items-center gap-2 py-1">
+                    <User className="w-4 h-4" />
+                    New User
                   </div>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="existing-user" 
+                  className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md transition-all duration-200"
+                >
+                  <div className="flex items-center gap-2 py-1">
+                    <Wallet className="w-4 h-4" />
+                    Existing User
+                  </div>
+                </TabsTrigger>
+              </TabsList>
 
-                  <FormField
-                    control={newUserForm.control}
-                    name="currency"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-black">Preferred Currency</FormLabel>
-                        <Select 
-                          onValueChange={field.onChange} 
-                          defaultValue={field.value}
-                          disabled={isLoading}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="border-2 border-gray-200 focus:border-black transition-colors">
-                              <SelectValue placeholder="Select currency" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {currencies.map(currency => (
-                              <SelectItem 
-                                key={currency.code} 
-                                value={currency.code}
-                                className="focus:bg-black focus:text-white"
-                              >
-                                <span className="inline-flex items-center gap-2">
-                                  <span>{currency.flag}</span>
-                                  <span>{currency.name}</span>
-                                  <span className="text-gray-500">
-                                    ({currency.code})
-                                  </span>
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button 
-                    type="submit"
-                    className="w-full bg-black hover:bg-gray-900 text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all duration-200"
-                    disabled={isLoading}
+              <TabsContent value="new-user">
+                <Form {...newUserForm}>
+                  <form 
+                    onSubmit={newUserForm.handleSubmit(handleCreateWallet)} 
+                    className="space-y-6"
                   >
-                    {isLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Wallet...
-                      </>
-                    ) : (
-                      <>
-                        <Wallet className="w-4 h-4 mr-2" />
-                        Create Wallet
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            </TabsContent>
-            <TabsContent value="existing-user">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={newUserForm.control}
+                        name="fullName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-black">Full Name</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="Enter your full name" 
+                                {...field} 
+                                disabled={isLoading}
+                                className="border-2 border-gray-200 focus:border-black transition-colors focus:ring-black"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={newUserForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-black">Email Address</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="email" 
+                                placeholder="your@email.com" 
+                                {...field} 
+                                disabled={isLoading}
+                                className="border-2 border-gray-200 focus:border-black transition-colors focus:ring-black"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={newUserForm.control}
+                      name="currency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-black">Preferred Currency</FormLabel>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            defaultValue={field.value}
+                            disabled={isLoading}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="border-2 border-gray-200 focus:border-black transition-colors">
+                                <SelectValue placeholder="Select currency" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {currencies.map(currency => (
+                                <SelectItem 
+                                  key={currency.code} 
+                                  value={currency.code}
+                                  className="focus:bg-black focus:text-white"
+                                >
+                                  <span className="inline-flex items-center gap-2">
+                                    <span>{currency.flag}</span>
+                                    <span>{currency.name}</span>
+                                    <span className="text-gray-500">
+                                      ({currency.code})
+                                    </span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button 
+                      type="submit"
+                      className="w-full bg-black hover:bg-gray-900 text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all duration-200"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Creating Wallet...
+                        </>
+                      ) : (
+                        <>
+                          <Wallet className="w-4 h-4 mr-2" />
+                          Create Wallet
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+
+              <TabsContent value="existing-user">
                 <Form {...existingUserForm}>
                   <form 
                     onSubmit={existingUserForm.handleSubmit(handleAccessWallet)} 
@@ -516,33 +510,7 @@ export default function RemittEaseApp() {
           </CardContent>
         </Card>
 
-        {/* Features Section */}
-        {!walletInfo && (
-          <div className="max-w-4xl mx-auto mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 bg-white rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform duration-200">
-              <Shield className="w-8 h-8 text-black mb-4" />
-              <h3 className="font-semibold mb-2 text-black">Secure Transactions</h3>
-              <p className="text-sm text-gray-600">
-                End-to-end encryption and blockchain security for your transfers
-              </p>
-            </div>
-            <div className="p-6 bg-white rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform duration-200">
-              <Zap className="w-8 h-8 text-black mb-4" />
-              <h3 className="font-semibold mb-2 text-black">Instant Transfers</h3>
-              <p className="text-sm text-gray-600">
-                Send money across borders in minutes, not days
-              </p>
-            </div>
-            <div className="p-6 bg-white rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform duration-200">
-              <DollarSign className="w-8 h-8 text-black mb-4" />
-              <h3 className="font-semibold mb-2 text-black">Low Fees</h3>
-              <p className="text-sm text-gray-600">
-                Competitive rates and minimal transaction fees
-              </p>
-            </div>
-          </div>
-        )}
-{/* Wallet Info Section */}
+        {/* Wallet Info Section */}
         {walletInfo && (
           <div className="mt-8 space-y-6 max-w-4xl mx-auto">
             <Alert className="border-2 border-black bg-gray-50">
@@ -660,7 +628,60 @@ export default function RemittEaseApp() {
             </Card>
           </div>
         )}
+
+        {/* Features Section */}
+        {!walletInfo && (
+          <div className="max-w-4xl mx-auto mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 bg-white rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform duration-200">
+              <Shield className="w-8 h-8 text-black mb-4" />
+              <h3 className="font-semibold mb-2 text-black">Secure Transactions</h3>
+              <p className="text-sm text-gray-600">
+                End-to-end encryption and blockchain security for your transfers
+              </p>
+            </div>
+            <div className="p-6 bg-white rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform duration-200">
+              <Zap className="w-8 h-8 text-black mb-4" />
+              <h3 className="font-semibold mb-2 text-black">Instant Transfers</h3>
+              <p className="text-sm text-gray-600">
+                Send money across borders in minutes, not days
+              </p>
+            </div>
+            <div className="p-6 bg-white rounded-lg border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform duration-200">
+              <DollarSign className="w-8 h-8 text-black mb-4" />
+              <h3 className="font-semibold mb-2 text-black">Low Fees</h3>
+              <p className="text-sm text-gray-600">
+                Competitive rates and minimal transaction fees
+              </p>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Custom Styles */}
+      <style jsx global>{`
+        @keyframes slide-up {
+          from {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        .animate-slide-up {
+          animation: slide-up 0.3s ease-out;
+        }
+
+        .hover-scale {
+          transition: transform 0.2s ease-in-out;
+        }
+
+        .hover-scale:hover {
+          transform: scale(1.02);
+        }
+      `}</style>
     </div>
   );
 }

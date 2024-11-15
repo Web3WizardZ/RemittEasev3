@@ -185,4 +185,4 @@ export const formatAmount = (amount: string, decimals: number = 6): string => {
   } catch {
     return '0';
   }
-};
+};                                                                                                

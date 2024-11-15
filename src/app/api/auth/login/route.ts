@@ -1,4 +1,3 @@
-// src/app/api/auth/login/route.ts
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import mongoose from 'mongoose';
@@ -76,7 +75,7 @@ export async function POST(req: Request) {
       let wallet;
       if (secretKey.includes(' ')) {
         // For mnemonic phrases
-        wallet = ethers.HDNodeWallet.fromPhrase(secretKey);
+        wallet = ethers.Wallet.fromMnemonic(secretKey);
       } else {
         // For private keys
         wallet = new ethers.Wallet(secretKey);
@@ -104,9 +103,9 @@ export async function POST(req: Request) {
         if (!process.env.NEXT_PUBLIC_BLOCKCHAIN_PROVIDER_URL) {
           throw new Error('Blockchain provider URL not configured');
         }
-        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_BLOCKCHAIN_PROVIDER_URL);
+        const provider = new ethers.providers.JsonRpcProvider(process.env.NEXT_PUBLIC_BLOCKCHAIN_PROVIDER_URL);
         const rawBalance = await provider.getBalance(walletAddress);
-        balance = ethers.formatEther(rawBalance);
+        balance = ethers.utils.formatEther(rawBalance);
       } catch (error) {
         console.error('Error fetching balance:', error);
       }
@@ -161,7 +160,6 @@ export async function POST(req: Request) {
   }
 }
 
-// Handling logout
 export async function DELETE() {
   try {
     const cookieStore = await cookies();
@@ -176,7 +174,6 @@ export async function DELETE() {
   }
 }
 
-// Optional: Get current session
 export async function GET() {
   try {
     const cookieStore = await cookies();

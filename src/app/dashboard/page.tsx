@@ -85,7 +85,7 @@ const weeklyData = [
   { name: 'Sun', sent: 5.5, received: 3.2 }
 ];
 
-export default function DashboardPage()  {
+function DashboardPage()   {
   const router = useRouter();
   const { toast } = useToast();
   
@@ -653,3 +653,4 @@ export default function DashboardPage()  {
   );
 }
 
+export default DashboardPage;

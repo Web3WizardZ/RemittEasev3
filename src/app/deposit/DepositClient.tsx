@@ -40,12 +40,14 @@ interface MoonPaySDK {
   };
 }
 
-// Extend Window interface
 declare global {
   interface Window {
     MoonPayWebSdk: MoonPaySDK;
   }
 }
+
+const MOONPAY_SCRIPT_URL = 'https://static.moonpay.com/web-sdk/v1/moonpay-web-sdk.min.js';
+const SCRIPT_LOAD_TIMEOUT = 15000; // 15 seconds timeout
 
 const DepositClient = () => {
   const router = useRouter();
@@ -53,62 +55,84 @@ const DepositClient = () => {
   const [error, setError] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   const [moonPayInitialized, setMoonPayInitialized] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
-  useEffect(() => {
-    fetchUserWallet();
-    initializeMoonPay();
-  }, []);
+  const loadMoonPayScript = () => {
+    return new Promise<void>((resolve, reject) => {
+      // If script is already loaded
+      if (document.querySelector(`script[src="${MOONPAY_SCRIPT_URL}"]`)) {
+        setMoonPayInitialized(true);
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = MOONPAY_SCRIPT_URL;
+      script.async = true;
+
+      // Set up timeout
+      const timeoutId = setTimeout(() => {
+        reject(new Error('MoonPay script load timeout'));
+      }, SCRIPT_LOAD_TIMEOUT);
+
+      script.onload = () => {
+        clearTimeout(timeoutId);
+        setMoonPayInitialized(true);
+        resolve();
+      };
+
+      script.onerror = () => {
+        clearTimeout(timeoutId);
+        reject(new Error('Failed to load MoonPay script'));
+      };
+
+      document.body.appendChild(script);
+    });
+  };
 
   const fetchUserWallet = async () => {
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'GET',
-      });
+      const response = await fetch('/api/auth/session');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.success && data.session?.walletAddress) {
         setWalletAddress(data.session.walletAddress);
       } else {
-        setError('Unable to fetch wallet address. Please try again.');
+        throw new Error('No wallet address found in session');
       }
     } catch (err) {
-      setError('Failed to load wallet information');
       console.error('Wallet fetch error:', err);
-    } finally {
-      setLoading(false);
+      setError(err instanceof Error ? err.message : 'Failed to load wallet information');
+      throw err;
     }
   };
 
   const initializeMoonPay = async () => {
     try {
-      // Check if script is already loaded
-      if (document.querySelector('script[src*="moonpay-web-sdk"]')) {
-        setMoonPayInitialized(true);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://static.moonpay.com/web-sdk/v1/moonpay-web-sdk.min.js';
-      script.async = true;
-      
-      script.onload = () => {
-        setMoonPayInitialized(true);
-      };
-
-      script.onerror = () => {
-        setError('Failed to load payment system. Please refresh and try again.');
-      };
-      
-      document.body.appendChild(script);
+      setIsRetrying(true);
+      await loadMoonPayScript();
+      await fetchUserWallet();
     } catch (err) {
-      setError('Failed to initialize payment system');
-      console.error('MoonPay initialization error:', err);
+      console.error('Initialization error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to initialize payment system');
+    } finally {
+      setLoading(false);
+      setIsRetrying(false);
     }
   };
 
+  useEffect(() => {
+    initializeMoonPay();
+  }, []);
+
   const handleDeposit = async () => {
     if (!window.MoonPayWebSdk || !moonPayInitialized) {
-      setError('Payment system not initialized. Please refresh and try again.');
+      setError('Payment system not initialized. Please try again.');
       return;
     }
 
@@ -137,15 +161,24 @@ const DepositClient = () => {
       const moonpaySdk = window.MoonPayWebSdk.init(config);
       moonpaySdk.show();
     } catch (err) {
-      setError('Failed to initialize deposit. Please try again.');
       console.error('MoonPay widget error:', err);
+      setError('Failed to initialize deposit. Please try again.');
     }
+  };
+
+  const handleRetry = () => {
+    setError('');
+    setLoading(true);
+    initializeMoonPay();
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <RefreshCw className={`w-8 h-8 ${isRetrying ? 'animate-spin' : ''} text-blue-600`} />
+        <p className="text-sm text-muted-foreground">
+          {isRetrying ? 'Retrying initialization...' : 'Loading...'}
+        </p>
       </div>
     );
   }
@@ -174,9 +207,19 @@ const DepositClient = () => {
 
         <CardContent className="space-y-6">
           {error && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+            <Alert variant="destructive" className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRetry}
+                disabled={isRetrying}
+              >
+                Retry
+              </Button>
             </Alert>
           )}
 
@@ -190,9 +233,9 @@ const DepositClient = () => {
               onClick={handleDeposit}
               className="w-full"
               size="lg"
-              disabled={!moonPayInitialized || !walletAddress}
+              disabled={!moonPayInitialized || !walletAddress || isRetrying}
             >
-              Deposit Now with MoonPay
+              {isRetrying ? 'Initializing...' : 'Deposit Now with MoonPay'}
             </Button>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">

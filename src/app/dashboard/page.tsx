@@ -1,634 +1,498 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { useRouter } from 'next/navigation';
-
-import { 
-  BarChart, Bar, 
-  LineChart, Line, 
-  XAxis, YAxis, 
-  CartesianGrid, Tooltip, 
-  ResponsiveContainer,
-  PieChart, Pie, Cell,
-  Legend
-} from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useToast } from '@/components/ui/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { 
-  Activity, Send, ArrowUpRight, ArrowDownRight, 
-  RefreshCw, Settings, PieChart as PieChartIcon, 
-  BarChart as BarChartIcon, History, Zap, Shield,
-  Bell, DollarSign, Upload, Download
+  Send,
+  ArrowUpRight,
+  ArrowDownRight,
+  RefreshCw,
+  Wallet,
+  Copy,
+  Eye,
+  EyeOff,
+  DollarSign,
+  Upload,
+  Download,
+  CheckCircle2,
+  AlertTriangle,
+  LogOut
 } from 'lucide-react';
 
-// Types
-interface Transaction {
-  hash: string;
-  from: string;
-  to: string | null;  // Changed from string | null | undefined
-  value: string;
-  timestamp: string;
-  status: 'pending' | 'completed' | 'failed';
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
 }
 
 interface UserProfile {
-  id: string;
   name: string;
   email: string;
+  currency: string;
   walletAddress: string;
-  preferredCurrency: string;
-  createdAt: Date;
-  updatedAt: Date;
+  walletSeed: string;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+interface Transaction {
+  id: string;
+  type: 'sent' | 'received';
+  amount: string;
+  currency: string;
+  to?: string;
+  from?: string;
+  status: 'pending' | 'completed';
+  date: string;
+}
 
-const pieData = [
-  { name: 'Sent', value: 400 },
-  { name: 'Received', value: 300 },
-  { name: 'Pending', value: 100 },
-  { name: 'Failed', value: 50 }
-];
+interface NotificationState {
+  show: boolean;
+  message: string;
+  type: 'success' | 'error' | 'warning';
+}
 
-const weeklyData = [
-  { name: 'Mon', sent: 4, received: 2.4 },
-  { name: 'Tue', sent: 3, received: 1.3 },
-  { name: 'Wed', sent: 2, received: 9.5 },
-  { name: 'Thu', sent: 2.7, received: 3.5 },
-  { name: 'Fri', sent: 4.8, received: 5 },
-  { name: 'Sat', sent: 3.1, received: 2.1 },
-  { name: 'Sun', sent: 5.5, received: 3.2 }
-];
+const FALLBACK_PROVIDER_URL = 'http://localhost:8545';
+const DEFAULT_BALANCE = '0.00';
 
-function DashboardPage()   {
-  const router = useRouter();
-  const { toast } = useToast();
-  
-  // State
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [balance, setBalance] = useState<string>('0');
-  const [convertedBalance, setConvertedBalance] = useState<string>('0');
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+const UserDashboard = () => {
+  // State declarations
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [balance, setBalance] = useState(DEFAULT_BALANCE);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [showSecret, setShowSecret] = useState(false);
+  const [notification, setNotification] = useState<NotificationState>({ 
+    show: false, 
+    message: '', 
+    type: 'success' 
+  });
+  const [providerError, setProviderError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [showNetworkError, setShowNetworkError] = useState(false);
-  const [notificationCount, setNotificationCount] = useState(3);
-  const [progress, setProgress] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Action handlers
-  const handleDeposit = () => router.push('/deposit');
-  const handleWithdraw = () => router.push('/withdraw');
-  const handleSend = () => router.push('/send');
-  const handleReceive = () => router.push('/receive');
-
-  const fetchData = async () => {
+  const getProvider = () => {
+    const providerUrl = process.env.NEXT_PUBLIC_BLOCKCHAIN_PROVIDER_URL || FALLBACK_PROVIDER_URL;
     try {
-      if (!profile?.walletAddress) return;
-      setRefreshing(true);
+      return new ethers.providers.JsonRpcProvider(providerUrl);
+    } catch (error) {
+      console.error('Failed to initialize provider:', error);
+      setProviderError(true);
+      return null;
+    }
+  };
 
-      const providerUrl = process.env.NEXT_PUBLIC_BLOCKCHAIN_PROVIDER_URL;
-      if (!providerUrl) {
-        throw new Error('Blockchain provider URL not configured');
-      }
+  const showNotification = (message: string, type: NotificationState['type'] = 'success') => {
+    setNotification({ show: true, message, type });
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, show: false }));
+    }, 3000);
+  };
 
-      const provider = new ethers.providers.JsonRpcProvider(providerUrl);
-      
-      // Fetch balance
-      const rawBalance = await provider.getBalance(profile.walletAddress);
-      const formattedBalance = ethers.utils.formatEther(rawBalance);
-      setBalance(formattedBalance);
+  const fetchTransactions = async (walletAddress: string): Promise<Transaction[]> => {
+    const provider = getProvider();
+    if (!provider) {
+      showNotification('Unable to connect to blockchain network', 'error');
+      return [];
+    }
 
-      // Simulate some progress
-      simulateTransactionProgress();
+    try {
+      const currentBlock = await provider.getBlockNumber();
+      const fromBlock = Math.max(0, currentBlock - 10);
 
-      // Fetch recent transactions
-      const latestBlock = await provider.getBlockNumber();
-      const fromBlock = Math.max(0, latestBlock - 10);
-      const filter = {
+      const sentTxFilter = {
         fromBlock,
         toBlock: 'latest',
-        address: profile.walletAddress
+        from: walletAddress
       };
 
-      const logs = await provider.getLogs(filter);
-      const processedTxs: Transaction[] = [];
+      const receivedTxFilter = {
+        fromBlock,
+        toBlock: 'latest',
+        to: walletAddress
+      };
 
-      for (const log of logs.slice(0, 5)) {
+      const [sentLogs, receivedLogs] = await Promise.all([
+        provider.getLogs(sentTxFilter),
+        provider.getLogs(receivedTxFilter)
+      ]);
+
+      const processTransaction = async (log: any, type: 'sent' | 'received'): Promise<Transaction> => {
         const tx = await provider.getTransaction(log.transactionHash);
-        if (!tx) continue;
-    
         const receipt = await provider.getTransactionReceipt(log.transactionHash);
         
-        processedTxs.push({
-          hash: tx.hash,
+        return {
+          id: tx.hash,
+          type,
+          amount: ethers.utils.formatEther(tx.value),
+          currency: 'ETH',
+          to: tx.to || undefined,
           from: tx.from,
-          to: tx.to ?? null, // Use nullish coalescing to handle undefined
-          value: ethers.utils.formatEther(tx.value),
-          timestamp: new Date().toISOString(),
-          status: receipt?.status ? 'completed' : 'failed'
-        });
+          status: receipt.status ? 'completed' : 'pending',
+          date: new Date().toISOString()
+        };
+      };
+
+      const sentTxs = await Promise.all(sentLogs.map(log => processTransaction(log, 'sent')));
+      const receivedTxs = await Promise.all(receivedLogs.map(log => processTransaction(log, 'received')));
+
+      return [...sentTxs, ...receivedTxs]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 10);
+
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      showNotification('Failed to fetch transactions', 'error');
+      return [];
+    }
+  };
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      setRefreshing(true);
+      setErrorMessage(null);
+
+      // Fetch session data
+      const response = await fetch('/api/auth/login', {
+        method: 'GET',
+      });
+
+      const data = await response.json();
+
+      if (!data.success || !data.session) {
+        throw new Error('Session not found');
       }
 
-      setTransactions(processedTxs);
+      const sessionData = data.session;
 
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setShowNetworkError(true);
+      setProfile({
+        name: sessionData.name || 'User',
+        email: sessionData.email || '',
+        currency: sessionData.currency || 'USD',
+        walletAddress: sessionData.walletAddress,
+        walletSeed: '' // Secret key not stored in session for security
+      });
+
+      // Get blockchain data
+      const provider = getProvider();
+      if (provider && sessionData.walletAddress) {
+        try {
+          // Fetch balance
+          const balance = await provider.getBalance(sessionData.walletAddress);
+          setBalance(ethers.utils.formatEther(balance));
+
+          // Fetch transactions
+          const recentTxs = await fetchTransactions(sessionData.walletAddress);
+          setTransactions(recentTxs);
+          setProviderError(false);
+        } catch (err) {
+          console.error('Blockchain data fetch error:', err);
+          setProviderError(true);
+          showNotification('Failed to fetch blockchain data', 'error');
+        }
+      }
+
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to load user data';
+      setErrorMessage(errorMsg);
+      showNotification('Please log in again to continue', 'error');
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const simulateTransactionProgress = () => {
-    setProgress(0);
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 10;
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'DELETE',
       });
-    }, 500);
-  };
-  useEffect(() => {
-    const initializeDashboard = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/user/profile');
-        if (!response.ok) {
-          throw new Error('Failed to load profile');
-        }
-        const userProfile = await response.json();
-        setProfile(userProfile);
-        await fetchData();
-        simulateTransactionProgress();
-      } catch (error) {
-        console.error('Dashboard initialization error:', error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error instanceof Error ? error.message : 'Failed to load dashboard'
-        });
-      } finally {
-        setLoading(false);
+
+      if (response.ok) {
+        window.location.href = '/';
+      } else {
+        showNotification('Failed to logout', 'error');
       }
-    };
+    } catch (error) {
+      console.error('Logout error:', error);
+      showNotification('Failed to logout', 'error');
+    }
+  };
 
-    initializeDashboard();
-  }, [toast]);
+  const copyToClipboard = async (text: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showNotification(`${type} copied to clipboard`);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      showNotification('Failed to copy to clipboard', 'error');
+    }
+  };
 
+  useEffect(() => {
+    fetchUserData();
+  }, []);
   if (loading) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        <div className="flex justify-between items-center mb-6">
-          <Skeleton className="h-8 w-[200px]" />
-          <Skeleton className="h-10 w-[100px]" />
+      <div className="container mx-auto p-6 flex justify-center items-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="w-8 h-8 animate-spin" />
+          <p>Loading your dashboard...</p>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="col-span-1">
-            <CardHeader>
-              <Skeleton className="h-4 w-[140px]" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-[180px] mb-2" />
-              <Skeleton className="h-4 w-[240px]" />
-            </CardContent>
-          </Card>
+      </div>
+    );
+  }
 
-          <Card className="col-span-1">
-            <CardHeader>
-              <Skeleton className="h-4 w-[140px]" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between">
-                <Skeleton className="h-12 w-[100px]" />
-                <Skeleton className="h-12 w-[100px]" />
-              </div>
-            </CardContent>
-          </Card>
+  if (errorMessage) {
+    return (
+      <div className="container mx-auto p-6 flex flex-col items-center justify-center min-h-screen gap-4">
+        <AlertTriangle className="w-12 h-12 text-yellow-500" />
+        <h2 className="text-xl font-semibold">Error Loading Dashboard</h2>
+        <p className="text-gray-600">{errorMessage}</p>
+        <Button 
+          onClick={() => fetchUserData()}
+          className="mt-4"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
-          <Card className="col-span-2">
-            <CardHeader>
-              <Skeleton className="h-4 w-[140px]" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-[200px] w-full" />
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="animate-pulse flex justify-center mt-8">
-          <RefreshCw className="w-8 h-8 animate-spin text-gray-400" />
-        </div>
+  if (!profile) {
+    return (
+      <div className="container mx-auto p-6 flex flex-col items-center justify-center min-h-screen gap-4">
+        <AlertTriangle className="w-12 h-12 text-yellow-500" />
+        <h2 className="text-xl font-semibold">Session Expired</h2>
+        <p className="text-gray-600">Please log in again to access your dashboard</p>
+        <Button 
+          onClick={() => window.location.href = '/'}
+          className="mt-4"
+        >
+          Return to Login
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Top Navigation */}
-      <div className="flex justify-between items-center mb-6">
+      {/* Network Status Alert */}
+      {providerError && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex items-center">
+            <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2" />
+            <p className="text-sm text-yellow-700">
+              Unable to connect to blockchain network. Some features may be limited.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Notification */}
+      {notification.show && (
+        <div className={`fixed top-4 right-4 p-3 rounded-lg shadow-lg flex items-center gap-2 animate-slide-up z-50
+          ${notification.type === 'success' ? 'bg-green-100 text-green-700' : ''}
+          ${notification.type === 'error' ? 'bg-red-100 text-red-700' : ''}
+          ${notification.type === 'warning' ? 'bg-yellow-100 text-yellow-700' : ''}`}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          {notification.message}
+        </div>
+      )}
+
+      {/* Header with Logout */}
+      <div className="flex justify-between items-center">
         <div className="flex items-center space-x-4">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-3xl font-bold">Welcome, {profile.name}</h1>
           <Badge variant="outline" className="text-blue-600 bg-blue-50">
-            Mainnet
+            {profile.currency}
           </Badge>
         </div>
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" className="relative" onClick={() => setNotificationCount(0)}>
-            <Bell className="h-5 w-5" />
-            {notificationCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
-                {notificationCount}
-              </span>
-            )}
+          <Button 
+            variant="outline" 
+            className="flex items-center space-x-2"
+            onClick={() => fetchUserData()}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex items-center space-x-2">
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuLabel>Dashboard Settings</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Security</DropdownMenuItem>
-              <DropdownMenuItem>Preferences</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button 
+            variant="destructive" 
+            onClick={handleLogout}
+            className="flex items-center space-x-2"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            <span>Logout</span>
+          </Button>
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{convertedBalance} {profile?.preferredCurrency}</div>
-            <p className="text-xs text-muted-foreground">
-              +20.1% from last month
-            </p>
-          </CardContent>
-        </Card>
+      {/* Wallet Information */}
+      <Card className="hover:shadow-lg transition-all">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Your Wallet
+          </CardTitle>
+          <CardDescription>Manage your RemittEase wallet and funds</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm text-muted-foreground">Wallet Address</span>
+            <div className="flex items-center justify-between bg-muted p-3 rounded-lg">
+              <code className="text-sm">{profile.walletAddress}</code>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => copyToClipboard(profile.walletAddress, "Wallet address")}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
 
-        <Card className="hover:shadow-lg transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gas Price</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">32 GWEI</div>
-            <p className="text-xs text-muted-foreground">
-              Average network fee
-            </p>
-          </CardContent>
-        </Card>
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm text-muted-foreground">Current Balance</span>
+            <div className="bg-muted p-3 rounded-lg">
+              <div className="text-2xl font-bold">{balance} ETH</div>
+              <div className="text-sm text-muted-foreground">
+                ≈ {(parseFloat(balance) * (profile.currency === 'USD' ? 3000 : 55000)).toFixed(2)} {profile.currency}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card className="hover:shadow-lg transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Transactions</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{transactions.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Last 7 days
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">98.2%</div>
-            <p className="text-xs text-muted-foreground">
-              All time
-            </p>
-          </CardContent>
-        </Card>
-      </div>
       {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Button
-          onClick={handleDeposit}
+        <Button 
+          onClick={() => window.location.href = '/send'}
+          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700"
+          disabled={providerError}
+        >
+          <Send className="w-6 h-6" />
+          <span>Send Money</span>
+        </Button>
+        
+        <Button 
+          onClick={() => window.location.href = '/receive'}
           className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-green-50 hover:bg-green-100 text-green-700"
+        >
+          <Download className="w-6 h-6" />
+          <span>Receive</span>
+        </Button>
+        
+        <Button 
+          onClick={() => window.location.href = '/deposit'}
+          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-purple-50 hover:bg-purple-100 text-purple-700"
+          disabled={providerError}
         >
           <Upload className="w-6 h-6" />
           <span>Deposit</span>
         </Button>
         
-        <Button
-          onClick={handleWithdraw}
-          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700"
+        <Button 
+          onClick={() => window.location.href = '/exchange'}
+          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-orange-50 hover:bg-orange-100 text-orange-700"
         >
-          <Download className="w-6 h-6" />
-          <span>Withdraw</span>
-        </Button>
-        
-        <Button
-          onClick={handleSend}
-          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700"
-        >
-          <Send className="w-6 h-6" />
-          <span>Send</span>
-        </Button>
-        
-        <Button
-          onClick={handleReceive}
-          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-purple-50 hover:bg-purple-100 text-purple-700"
-        >
-          <Download className="w-6 h-6" />
-          <span>Receive</span>
+          <DollarSign className="w-6 h-6" />
+          <span>Exchange</span>
         </Button>
       </div>
 
-      {/* Main Content */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <PieChartIcon className="h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="transactions" className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            Transactions
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChartIcon className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Balance Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Balance Overview</CardTitle>
-                <CardDescription>Your current wallet balance and value</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col space-y-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Current Balance</p>
-                    <p className="text-3xl font-bold">{convertedBalance} {profile?.preferredCurrency}</p>
-                    <p className="text-sm text-muted-foreground">{balance} ETH</p>
+      {/* Transaction History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Transactions</CardTitle>
+          <CardDescription>Your latest money transfers</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {transactions.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                {providerError ? 'Unable to load transactions' : 'No transactions yet'}
+              </div>
+            ) : (
+              transactions.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent">
+                  <div className="flex items-center space-x-4">
+                    <div className={`p-2 rounded-full ${
+                      tx.type === 'sent' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                    }`}>
+                      {tx.type === 'sent' ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {tx.type === 'sent' ? `Sent to ${tx.to}` : `Received from ${tx.from}`}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(tx.date).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
-                  <Progress value={progress} className="w-full" />
-                  <p className="text-xs text-muted-foreground">
-                    Last updated: {new Date().toLocaleString()}
-                  </p>
+                  <div className="text-right">
+                    <p className={`font-medium ${tx.type === 'sent' ? 'text-red-600' : 'text-green-600'}`}>
+                      {tx.type === 'sent' ? '-' : '+'}{tx.amount} {tx.currency}
+                    </p>
+                    <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>
+                      {tx.status}
+                    </Badge>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Transaction Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Transaction Distribution</CardTitle>
-                <CardDescription>Overview of your transaction types</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+              ))
+            )}
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Weekly Activity Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Activity</CardTitle>
-              <CardDescription>Your transaction activity over the past week</CardDescription>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="sent" fill="#8884d8" />
-                  <Bar dataKey="received" fill="#82ca9d" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="transactions">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Transactions</CardTitle>
-              <CardDescription>
-                Your transaction history across all wallets
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[600px] pr-4">
-                {transactions.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-[200px]">
-                    <History className="h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-muted-foreground">No transactions found</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {transactions.map((tx) => (
-                      <div 
-                        key={tx.hash}
-                        className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent transition-colors"
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className={`p-2 rounded-full ${
-                            tx.from === profile?.walletAddress
-                              ? 'bg-red-100 text-red-600'
-                              : 'bg-green-100 text-green-600'
-                          }`}>
-                            {tx.from === profile?.walletAddress ? (
-                              <ArrowUpRight className="h-4 w-4" />
-                            ) : (
-                              <ArrowDownRight className="h-4 w-4" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium">
-                              {tx.from === profile?.walletAddress ? 'Sent' : 'Received'}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {new Date(tx.timestamp).toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className={`font-medium ${
-                            tx.from === profile?.walletAddress
-                              ? 'text-red-600'
-                              : 'text-green-600'
-                          }`}>
-                            {tx.from === profile?.walletAddress ? '-' : '+'}{tx.value} ETH
-                          </p>
-                          <Badge 
-                            variant={tx.status === 'completed' ? 'default' : 'secondary'}
-                            className="mt-1"
-                          >
-                            {tx.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="analytics">
+      {/* Network Status */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Network Status</CardTitle>
+          <CardDescription>Current blockchain network status</CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Gas Analysis */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Gas Usage Analysis</CardTitle>
-                <CardDescription>Track your gas spending over time</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={transactions.map(tx => ({
-                    date: new Date(tx.timestamp).toLocaleDateString(),
-                    value: parseFloat(tx.value)
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="value" stroke="#8884d8" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Transaction Success Rate */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Success Rate</CardTitle>
-                <CardDescription>Transaction success analysis</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span>Successful</span>
-                    <span className="font-bold text-green-600">98%</span>
-                  </div>
-                  <Progress value={98} className="bg-green-100" />
-                  
-                  <div className="flex justify-between items-center">
-                    <span>Failed</span>
-                    <span className="font-bold text-red-600">2%</span>
-                  </div>
-                  <Progress value={2} className="bg-red-100" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div>
+                <p className="text-sm text-muted-foreground">Connection Status</p>
+                <p className="font-medium">
+                  {providerError ? 'Disconnected' : 'Connected'}
+                </p>
+              </div>
+              <div className={`h-3 w-3 rounded-full ${
+                providerError ? 'bg-red-500' : 'bg-green-500'
+              }`} />
+            </div>
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div>
+                <p className="text-sm text-muted-foreground">Network</p>
+                <p className="font-medium">Ethereum Mainnet</p>
+              </div>
+              <Badge variant="outline">Live</Badge>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
 
-      {/* Network Error Dialog */}
-      <AlertDialog open={showNetworkError} onOpenChange={setShowNetworkError}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Network Error</AlertDialogTitle>
-            <AlertDialogDescription>
-              There was a problem connecting to the network. This might be due to:
-              <ul className="list-disc ml-6 mt-2">
-                <li>Internet connection issues</li>
-                <li>Blockchain network congestion</li>
-                <li>Server maintenance</li>
-              </ul>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => {
-              setShowNetworkError(false);
-              fetchData();
-            }}>
-              Try Again
-            </AlertDialogAction>
-            <AlertDialogCancel>Dismiss</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Floating Action Button */}
-      <div className="fixed bottom-6 right-6">
-        <Button
-          onClick={fetchData}
-          disabled={refreshing}
-          size="lg"
-          className="rounded-full w-12 h-12 shadow-lg"
-        >
-          <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-        </Button>
+      {/* Footer with last update time */}
+      <div className="text-center text-sm text-muted-foreground">
+        Last updated: {new Date().toLocaleString()}
       </div>
 
-      {/* Custom Styles */}
       <style jsx global>{`
         @keyframes slide-up {
           from {
-            transform: translateY(100%);
+            transform: translateY(20px);
             opacity: 0;
           }
           to {
@@ -638,19 +502,11 @@ function DashboardPage()   {
         }
 
         .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-
-        .hover-scale {
-          transition: transform 0.2s ease-in-out;
-        }
-
-        .hover-scale:hover {
-          transform: scale(1.02);
+          animation: slide-up 0.2s ease-out;
         }
       `}</style>
     </div>
   );
-}
+};
 
-export default DashboardPage;
+export default UserDashboard;

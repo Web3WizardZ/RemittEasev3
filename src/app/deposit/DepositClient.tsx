@@ -7,25 +7,31 @@ import { AlertTriangle, ArrowLeft, Wallet, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
 
+// MoonPay Types
+type Environment = 'sandbox' | 'production';
+type Variant = 'overlay' | 'hosted';
+
+interface MoonPayParams {
+  apiKey: string;
+  walletAddress?: string;
+  baseCurrencyCode?: string;
+  defaultCurrencyCode?: string;
+  baseCurrencyAmount?: string;
+  showWalletAddressForm?: boolean;
+  colorCode?: string;
+  redirectUrl?: string;
+  showOnlyCurrencies?: string[];
+  currencyCode?: string;
+  lockCurrencyCode?: boolean;
+  theme?: string;
+  language?: string;
+}
+
 interface MoonPayConfig {
-  flow: string;
-  environment: string;
-  variant: string;
-  params: {
-    apiKey: string;
-    walletAddress?: string;
-    baseCurrencyCode?: string;
-    defaultCurrencyCode?: string;
-    baseCurrencyAmount?: string;
-    showWalletAddressForm?: boolean;
-    colorCode?: string;
-    redirectUrl?: string;
-    showOnlyCurrencies?: string[];
-    currencyCode?: string;
-    lockCurrencyCode?: boolean;
-    theme?: string;
-    language?: string;
-  };
+  flow: 'buy';
+  environment: Environment;
+  variant: Variant;
+  params: MoonPayParams;
 }
 
 interface MoonPaySDK {
@@ -34,6 +40,7 @@ interface MoonPaySDK {
   };
 }
 
+// Extend Window interface
 declare global {
   interface Window {
     MoonPayWebSdk: MoonPaySDK;
@@ -108,7 +115,7 @@ const DepositClient = () => {
     try {
       const config: MoonPayConfig = {
         flow: "buy",
-        environment: process.env.NEXT_PUBLIC_MOONPAY_ENV || "sandbox",
+        environment: (process.env.NEXT_PUBLIC_MOONPAY_ENV as Environment) || "sandbox",
         variant: "overlay",
         params: {
           apiKey: process.env.NEXT_PUBLIC_MOONPAY_PUBLIC_KEY || '',
@@ -116,7 +123,7 @@ const DepositClient = () => {
           baseCurrencyCode: "usd",
           defaultCurrencyCode: "eth",
           showWalletAddressForm: false,
-          colorCode: "#2563eb", // RemittEase blue
+          colorCode: "#2563eb",
           redirectUrl: `${window.location.origin}/dashboard`,
           showOnlyCurrencies: ['eth', 'usdt', 'usdc'],
           currencyCode: "eth",

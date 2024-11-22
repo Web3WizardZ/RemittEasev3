@@ -1,5 +1,6 @@
 export type Environment = 'sandbox' | 'production';
 export type Variant = 'overlay' | 'hosted';
+export type SupportedCurrency = 'eth' | 'usdt' | 'usdc';
 
 export interface MoonPayParams {
   apiKey: string;
@@ -15,6 +16,9 @@ export interface MoonPayParams {
   lockCurrencyCode?: boolean;
   theme?: string;
   language?: string;
+  showAllCurrencies?: boolean;
+  enableRecurringBuy?: boolean;
+  defaultCountryCode?: string;
 }
 
 export interface MoonPayConfig {
@@ -28,10 +32,4 @@ export interface MoonPaySDK {
   init: (config: MoonPayConfig) => {
     show: () => void;
   };
-}
-
-declare global {
-  interface Window {
-    MoonPayWebSdk: MoonPaySDK;
-  }
 }

@@ -12,8 +12,6 @@ import {
   RefreshCw,
   Wallet,
   Copy,
-  Eye,
-  EyeOff,
   DollarSign,
   Upload,
   Download,
@@ -22,18 +20,12 @@ import {
   LogOut
 } from 'lucide-react';
 
-declare global {
-  interface Window {
-    ethereum?: any;
-  }
-}
-
+// Types
 interface UserProfile {
   name: string;
   email: string;
   currency: string;
   walletAddress: string;
-  walletSeed: string;
 }
 
 interface Transaction {
@@ -53,16 +45,11 @@ interface NotificationState {
   type: 'success' | 'error' | 'warning';
 }
 
-const FALLBACK_PROVIDER_URL = 'http://localhost:8545';
-const DEFAULT_BALANCE = '0.00';
-
-const UserDashboard = () => {
-  // State declarations
+export default function Page() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [balance, setBalance] = useState(DEFAULT_BALANCE);
+  const [balance, setBalance] = useState('0.00');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [showSecret, setShowSecret] = useState(false);
   const [notification, setNotification] = useState<NotificationState>({ 
     show: false, 
     message: '', 
@@ -72,17 +59,6 @@ const UserDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const getProvider = () => {
-    const providerUrl = process.env.NEXT_PUBLIC_BLOCKCHAIN_PROVIDER_URL || FALLBACK_PROVIDER_URL;
-    try {
-      return new ethers.providers.JsonRpcProvider(providerUrl);
-    } catch (error) {
-      console.error('Failed to initialize provider:', error);
-      setProviderError(true);
-      return null;
-    }
-  };
-
   const showNotification = (message: string, type: NotificationState['type'] = 'success') => {
     setNotification({ show: true, message, type });
     setTimeout(() => {
@@ -91,61 +67,38 @@ const UserDashboard = () => {
   };
 
   const fetchTransactions = async (walletAddress: string): Promise<Transaction[]> => {
-    const provider = getProvider();
-    if (!provider) {
-      showNotification('Unable to connect to blockchain network', 'error');
-      return [];
-    }
+    // Mock transactions for testing
+    const mockTransactions: Transaction[] = [
+      {
+        id: '0x1234567890abcdef1',
+        type: 'received',
+        amount: '0.5',
+        currency: 'ETH',
+        from: '0x9876543210fedcba1',
+        status: 'completed',
+        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '0x1234567890abcdef2',
+        type: 'sent',
+        amount: '0.2',
+        currency: 'ETH',
+        to: '0x9876543210fedcba2',
+        status: 'completed',
+        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '0x1234567890abcdef3',
+        type: 'received',
+        amount: '1.0',
+        currency: 'ETH',
+        from: '0x9876543210fedcba3',
+        status: 'completed',
+        date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
 
-    try {
-      const currentBlock = await provider.getBlockNumber();
-      const fromBlock = Math.max(0, currentBlock - 10);
-
-      const sentTxFilter = {
-        fromBlock,
-        toBlock: 'latest',
-        from: walletAddress
-      };
-
-      const receivedTxFilter = {
-        fromBlock,
-        toBlock: 'latest',
-        to: walletAddress
-      };
-
-      const [sentLogs, receivedLogs] = await Promise.all([
-        provider.getLogs(sentTxFilter),
-        provider.getLogs(receivedTxFilter)
-      ]);
-
-      const processTransaction = async (log: any, type: 'sent' | 'received'): Promise<Transaction> => {
-        const tx = await provider.getTransaction(log.transactionHash);
-        const receipt = await provider.getTransactionReceipt(log.transactionHash);
-        
-        return {
-          id: tx.hash,
-          type,
-          amount: ethers.utils.formatEther(tx.value),
-          currency: 'ETH',
-          to: tx.to || undefined,
-          from: tx.from,
-          status: receipt.status ? 'completed' : 'pending',
-          date: new Date().toISOString()
-        };
-      };
-
-      const sentTxs = await Promise.all(sentLogs.map(log => processTransaction(log, 'sent')));
-      const receivedTxs = await Promise.all(receivedLogs.map(log => processTransaction(log, 'received')));
-
-      return [...sentTxs, ...receivedTxs]
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 10);
-
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      showNotification('Failed to fetch transactions', 'error');
-      return [];
-    }
+    return mockTransactions;
   };
 
   const fetchUserData = async () => {
@@ -172,26 +125,21 @@ const UserDashboard = () => {
         email: sessionData.email || '',
         currency: sessionData.currency || 'USD',
         walletAddress: sessionData.walletAddress,
-        walletSeed: '' // Secret key not stored in session for security
       });
 
       // Get blockchain data
-      const provider = getProvider();
-      if (provider && sessionData.walletAddress) {
-        try {
-          // Fetch balance
-          const balance = await provider.getBalance(sessionData.walletAddress);
-          setBalance(ethers.utils.formatEther(balance));
+      try {
+        // Fetch balance (using mock data for now)
+        setBalance('1.5');
 
-          // Fetch transactions
-          const recentTxs = await fetchTransactions(sessionData.walletAddress);
-          setTransactions(recentTxs);
-          setProviderError(false);
-        } catch (err) {
-          console.error('Blockchain data fetch error:', err);
-          setProviderError(true);
-          showNotification('Failed to fetch blockchain data', 'error');
-        }
+        // Fetch transactions
+        const recentTxs = await fetchTransactions(sessionData.walletAddress);
+        setTransactions(recentTxs);
+        setProviderError(false);
+      } catch (err) {
+        console.error('Blockchain data fetch error:', err);
+        setProviderError(true);
+        showNotification('Failed to fetch blockchain data', 'error');
       }
 
     } catch (error) {
@@ -238,6 +186,7 @@ const UserDashboard = () => {
   useEffect(() => {
     fetchUserData();
   }, []);
+
   if (loading) {
     return (
       <div className="container mx-auto p-6 flex justify-center items-center min-h-screen">
@@ -476,7 +425,11 @@ const UserDashboard = () => {
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="text-sm text-muted-foreground">Network</p>
-                <p className="font-medium">Ethereum Mainnet</p>
+                <p className="font-medium">
+                  {process.env.NEXT_PUBLIC_ENV === 'production' 
+                    ? 'Ethereum Mainnet' 
+                    : 'Sepolia Testnet'}
+                </p>
               </div>
               <Badge variant="outline">Live</Badge>
             </div>
@@ -507,6 +460,4 @@ const UserDashboard = () => {
       `}</style>
     </div>
   );
-};
-
-export default UserDashboard;
+}

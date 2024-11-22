@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, ArrowLeft, Wallet, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Wallet, RefreshCw, ExternalLink } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
 
 // MoonPay Types
 type Environment = 'sandbox' | 'production';
 type Variant = 'overlay' | 'hosted';
+type SupportedCurrency = 'eth' | 'usdt' | 'usdc';
 
 interface MoonPayParams {
   apiKey: string;
@@ -46,8 +47,24 @@ declare global {
   }
 }
 
+// Constants
 const MOONPAY_SCRIPT_URL = 'https://static.moonpay.com/web-sdk/v1/moonpay-web-sdk.min.js';
-const SCRIPT_LOAD_TIMEOUT = 15000; // 15 seconds timeout
+const SCRIPT_LOAD_TIMEOUT = 15000; // 15 seconds
+const SUPPORTED_CURRENCIES: SupportedCurrency[] = ['eth', 'usdt', 'usdc'];
+const DEFAULT_AMOUNT = '100';
+
+interface UserSession {
+  walletAddress: string;
+  name: string;
+  email: string;
+  currency: string;
+}
+
+interface SessionResponse {
+  success: boolean;
+  session?: UserSession;
+  error?: string;
+}
 
 const DepositClient = () => {
   const router = useRouter();
@@ -56,10 +73,11 @@ const DepositClient = () => {
   const [walletAddress, setWalletAddress] = useState('');
   const [moonPayInitialized, setMoonPayInitialized] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [showWidget, setShowWidget] = useState(false);
 
   const loadMoonPayScript = () => {
     return new Promise<void>((resolve, reject) => {
-      // If script is already loaded
+      // Check if script is already loaded
       if (document.querySelector(`script[src="${MOONPAY_SCRIPT_URL}"]`)) {
         setMoonPayInitialized(true);
         resolve();
@@ -69,7 +87,7 @@ const DepositClient = () => {
       const script = document.createElement('script');
       script.src = MOONPAY_SCRIPT_URL;
       script.async = true;
-
+      
       // Set up timeout
       const timeoutId = setTimeout(() => {
         reject(new Error('MoonPay script load timeout'));
@@ -95,18 +113,29 @@ const DepositClient = () => {
       const response = await fetch('/api/auth/session');
       
       if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/');
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const data = await response.json();
+      const data: SessionResponse = await response.json();
       
-      if (data.success && data.session?.walletAddress) {
-        setWalletAddress(data.session.walletAddress);
-      } else {
-        throw new Error('No wallet address found in session');
+      if (!data.success || !data.session) {
+        throw new Error(data.error || 'No session found');
       }
+      
+      setWalletAddress(data.session.walletAddress);
     } catch (err) {
       console.error('Wallet fetch error:', err);
+      if (err instanceof Error && (
+        err.message.includes('401') || 
+        err.message.includes('No session found')
+      )) {
+        router.push('/');
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Failed to load wallet information');
       throw err;
     }
@@ -115,8 +144,7 @@ const DepositClient = () => {
   const initializeMoonPay = async () => {
     try {
       setIsRetrying(true);
-      await loadMoonPayScript();
-      await fetchUserWallet();
+      await Promise.all([loadMoonPayScript(), fetchUserWallet()]);
     } catch (err) {
       console.error('Initialization error:', err);
       setError(err instanceof Error ? err.message : 'Failed to initialize payment system');
@@ -128,6 +156,9 @@ const DepositClient = () => {
 
   useEffect(() => {
     initializeMoonPay();
+    return () => {
+      setShowWidget(false);
+    };
   }, []);
 
   const handleDeposit = async () => {
@@ -137,6 +168,7 @@ const DepositClient = () => {
     }
 
     try {
+      setShowWidget(true);
       const config: MoonPayConfig = {
         flow: "buy",
         environment: (process.env.NEXT_PUBLIC_MOONPAY_ENV as Environment) || "sandbox",
@@ -149,9 +181,9 @@ const DepositClient = () => {
           showWalletAddressForm: false,
           colorCode: "#2563eb",
           redirectUrl: `${window.location.origin}/dashboard`,
-          showOnlyCurrencies: ['eth', 'usdt', 'usdc'],
+          showOnlyCurrencies: [...SUPPORTED_CURRENCIES], // Create mutable copy
           currencyCode: "eth",
-          baseCurrencyAmount: "100",
+          baseCurrencyAmount: DEFAULT_AMOUNT,
           lockCurrencyCode: false,
           theme: "light",
           language: "en"
@@ -163,12 +195,14 @@ const DepositClient = () => {
     } catch (err) {
       console.error('MoonPay widget error:', err);
       setError('Failed to initialize deposit. Please try again.');
+      setShowWidget(false);
     }
   };
 
   const handleRetry = () => {
     setError('');
     setLoading(true);
+    setShowWidget(false);
     initializeMoonPay();
   };
 
@@ -177,7 +211,7 @@ const DepositClient = () => {
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
         <RefreshCw className={`w-8 h-8 ${isRetrying ? 'animate-spin' : ''} text-blue-600`} />
         <p className="text-sm text-muted-foreground">
-          {isRetrying ? 'Retrying initialization...' : 'Loading...'}
+          {isRetrying ? 'Retrying initialization...' : 'Loading your deposit page...'}
         </p>
       </div>
     );
@@ -218,7 +252,7 @@ const DepositClient = () => {
                 onClick={handleRetry}
                 disabled={isRetrying}
               >
-                Retry
+                {isRetrying ? 'Retrying...' : 'Retry'}
               </Button>
             </Alert>
           )}
@@ -233,9 +267,18 @@ const DepositClient = () => {
               onClick={handleDeposit}
               className="w-full"
               size="lg"
-              disabled={!moonPayInitialized || !walletAddress || isRetrying}
+              disabled={!moonPayInitialized || !walletAddress || isRetrying || showWidget}
             >
-              {isRetrying ? 'Initializing...' : 'Deposit Now with MoonPay'}
+              {isRetrying ? (
+                'Initializing...'
+              ) : showWidget ? (
+                'Widget Open'
+              ) : (
+                <>
+                  <span>Deposit Now with MoonPay</span>
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </>
+              )}
             </Button>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -250,6 +293,15 @@ const DepositClient = () => {
               </div>
 
               <div className="space-y-2">
+                <h4 className="font-medium">Supported Currencies</h4>
+                <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                  <li>Ethereum (ETH)</li>
+                  <li>USD Tether (USDT)</li>
+                  <li>USD Coin (USDC)</li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
                 <h4 className="font-medium">Key Features</h4>
                 <ul className="list-disc list-inside text-muted-foreground space-y-1">
                   <li>Instant deposits</li>
@@ -258,10 +310,21 @@ const DepositClient = () => {
                   <li>24/7 support</li>
                 </ul>
               </div>
+
+              <div className="space-y-2">
+                <h4 className="font-medium">Security</h4>
+                <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                  <li>Regulated service</li>
+                  <li>ID verification</li>
+                  <li>Fraud protection</li>
+                  <li>Secure transactions</li>
+                </ul>
+              </div>
             </div>
 
-            <div className="text-xs text-muted-foreground text-center">
-              Powered by MoonPay - Secure and regulated payment processing
+            <div className="text-xs text-muted-foreground text-center space-y-1">
+              <p>Powered by MoonPay - Secure and regulated payment processing</p>
+              <p>Minimum deposit: $30 USD equivalent</p>
             </div>
           </div>
         </CardContent>

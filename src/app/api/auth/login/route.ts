@@ -113,12 +113,13 @@ export async function POST(req: Request) {
       // Set session cookie
       const cookieStore = await cookies();
       const sessionData = {
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        walletAddress: user.walletAddress,
-        currency: user.currency
-      };
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      walletAddress: user.walletAddress,
+      currency: user.currency,  // Ensure this is included
+      createdAt: new Date().toISOString()
+};
 
       cookieStore.set('user_session', JSON.stringify(sessionData), {
         httpOnly: true,
@@ -136,6 +137,7 @@ export async function POST(req: Request) {
           name: user.name,
           email: user.email,
           walletAddress: user.walletAddress,
+          currency: user.currency
         },
         wallet: {
           address: walletAddress,
@@ -178,24 +180,29 @@ export async function GET() {
   try {
     const cookieStore = await cookies();
     const userSession = cookieStore.get('user_session');
-
+  
     if (!userSession?.value) {
       return NextResponse.json({ 
         success: false,
         error: 'Not authenticated' 
       }, { status: 401 });
     }
-
-    const sessionData = JSON.parse(userSession.value);
-    return NextResponse.json({
-      success: true,
-      session: sessionData
-    });
-
+  
+    try {
+      const sessionData = JSON.parse(userSession.value);
+      if (!sessionData.currency) {
+        throw new Error('Invalid session data');
+      }
+      return NextResponse.json({ success: true, session: sessionData });
+    } catch {
+      return NextResponse.json({
+        success: false, 
+        error: 'Invalid session format'
+      }, { status: 401 });
+    }
   } catch (error) {
     return NextResponse.json({
       success: false,
       error: 'Failed to get session'
     }, { status: 500 });
-  }
-}
+  }}

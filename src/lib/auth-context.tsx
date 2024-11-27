@@ -8,6 +8,7 @@ interface User {
   name?: string;
   email?: string;
   walletAddress: string;
+  currency: string;
 }
 
 interface AuthContextType {

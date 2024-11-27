@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import Image from 'next/image';
@@ -54,13 +54,32 @@ interface WalletInfo {
   address: string;
   balance: string;
   seed: string;
+  currency: string;
+  exchangeRate: number;
 }
 
 interface Currency {
   code: string;
   name: string;
   flag: string;
-  rate?: number;
+  rate: number;
+}
+
+interface LoginResponse {
+  success: boolean;
+  error?: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    walletAddress: string;
+    currency: string;
+  };
+  wallet?: {
+    address: string;
+    balance: string;
+    seed: string;
+  };
 }
 
 // Form Schemas
@@ -110,12 +129,13 @@ export default function HomePage() {
   const [showSeed, setShowSeed] = useState(false);
   const [hasCopiedSeed, setHasCopiedSeed] = useState(false);
   const [hasDownloadedBackup, setHasDownloadedBackup] = useState(false);
+  
   const currencies: Currency[] = [
     { code: 'USD', name: 'US Dollar', flag: '🇺🇸', rate: 1 },
     { code: 'ZAR', name: 'South African Rand', flag: '🇿🇦', rate: 18.5 },
-    { code: 'NGN', name: 'Nigerian Naira', flag: '🇳🇬', rate: 1550 },
+    { code: 'NGN', name: 'Nigerian Naira', flag: '🇳🇬', rate: 755 },
     { code: 'KES', name: 'Kenyan Shilling', flag: '🇰🇪', rate: 130 },
-    { code: 'GHS', name: 'Ghanaian Cedi', flag: '🇬🇭', rate: 12.5 }
+    { code: 'GHS', name: 'Ghanaian Cedi', flag: '🇬🇭', rate: 11 }
   ];
 
   const newUserForm = useForm<NewUserForm>({
@@ -187,6 +207,9 @@ export default function HomePage() {
       setHasCopiedSeed(false);
       setHasDownloadedBackup(false);
       
+      const selectedCurrency = currencies.find(c => c.code === data.currency);
+      if (!selectedCurrency) throw new Error('Invalid currency selected');
+
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: {
@@ -209,7 +232,18 @@ export default function HomePage() {
         address: result.wallet.address,
         balance: result.wallet.balance,
         seed: result.wallet.seed,
+        currency: data.currency,
+        exchangeRate: selectedCurrency.rate,
       });
+
+      // Store user session data
+      sessionStorage.setItem('userSession', JSON.stringify({
+        name: data.fullName,
+        email: data.email,
+        currency: data.currency,
+        walletAddress: result.wallet.address,
+        seed: result.wallet.seed, // Added seed here
+      }));
 
       toast({
         title: "Wallet Created Successfully",
@@ -217,7 +251,6 @@ export default function HomePage() {
         duration: 5000,
       });
 
-      // Smoothly scroll to the wallet info section
       const walletInfoSection = document.getElementById('wallet-info');
       if (walletInfoSection) {
         walletInfoSection.scrollIntoView({ behavior: 'smooth' });
@@ -239,39 +272,47 @@ export default function HomePage() {
     try {
       setIsLoading(true);
       
-      const result = await loginWithWallet(data.walletAddress, data.secretKey);
+      const result = await loginWithWallet(data.walletAddress, data.secretKey) as LoginResponse;
 
       if (!result.success || !result.user || !result.wallet) {
         throw new Error(result.error || 'Failed to access wallet');
       }
 
+      const { user, wallet } = result;
+
+      const selectedCurrency = currencies.find(c => c.code === user.currency);
+      if (!selectedCurrency) throw new Error('Invalid currency configuration');
+
       setWalletInfo({
-        address: result.wallet.address,
-        balance: result.wallet.balance,
+        address: wallet.address,
+        balance: wallet.balance,
         seed: data.secretKey,
+        currency: user.currency,
+        exchangeRate: selectedCurrency.rate,
       });
 
+      // Store user session data
+      sessionStorage.setItem('userSession', JSON.stringify({
+        ...user,
+        seed: data.secretKey,
+      }));
+
+      // Log the user in
       login({
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
-        walletAddress: result.wallet.address,
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        walletAddress: wallet.address,
+        currency: user.currency, // Include currency here
       });
 
-      toast({
-        title: "Welcome Back!",
-        description: "Logged in successfully.",
-      });
-
-      // Animated transition to dashboard
-      const transitionOut = async () => {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait for animation
+      // Navigate to dashboard
+      startTransition(() => {
         router.push('/dashboard');
-      };
-
-      transitionOut();
+      });
 
     } catch (err) {
+      console.error('Access wallet error:', err);
       toast({
         variant: "destructive",
         title: "Error",
@@ -282,121 +323,172 @@ export default function HomePage() {
     }
   };
 
-  return (<div className="min-h-screen bg-white relative overflow-hidden">
-    <Background />
-    
-    {/* Decorative elements */}
-    <div className="absolute top-40 -left-20 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl" />
-    <div className="absolute bottom-20 -right-20 w-60 h-60 bg-purple-500/5 rounded-full blur-3xl" />
-    
-    <div className="container mx-auto px-4 py-8 relative">
-      {/* Hero Section with Animation */}
-      <motion.div 
-        className="flex flex-col items-center mb-16 text-center"
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        <motion.div variants={itemVariants}>
-          <Image 
-            src="/remittease-logo.png"
-            alt="RemittEase"
-            width={80}
-            height={80}
-            className="h-20 w-auto mb-8"
-            priority
-          />
-        </motion.div>
-        
-        <motion.h1 
-          variants={itemVariants}
-          className="text-4xl md:text-5xl font-bold text-black mb-4 tracking-tight"
-        >
-          Global Money Transfer Simplified
-        </motion.h1>
-        
-        <motion.p 
-          variants={itemVariants}
-          className="text-lg text-gray-600 max-w-2xl mb-12"
-        >
-          Fast, secure, and affordable cross-border transfers powered by blockchain technology
-        </motion.p>
-        
-        {/* Stats Section */}
+  const handleContinueToDashboard = async () => {
+    try {
+      const sessionData = sessionStorage.getItem('userSession');
+      if (!sessionData) throw new Error('No session data found');
+      
+      const parsedData = JSON.parse(sessionData);
+      console.log('Parsed session data:', parsedData);
+      
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress: parsedData.walletAddress,
+          secretKey: parsedData.seed,
+        }),
+        credentials: 'include',
+      });
+  
+      const result = await response.json();
+      console.log('Authentication response:', result);
+  
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Authentication failed');
+      }
+
+      // Log the user in
+      login({
+        id: result.user.id,
+        name: result.user.name,
+        email: result.user.email,
+        walletAddress: result.wallet.address,
+        currency: result.user.currency,
+      });
+
+      // Navigate to dashboard
+      startTransition(() => {
+        router.push('/dashboard');
+      });
+      
+    } catch (error) {
+      console.error('Navigation error:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Session expired or authentication failed. Please log in again."
+      });
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white relative overflow-hidden">
+      <Background />
+      
+      <div className="absolute top-40 -left-20 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl" />
+      <div className="absolute bottom-20 -right-20 w-60 h-60 bg-purple-500/5 rounded-full blur-3xl" />
+      
+      <div className="container mx-auto px-4 py-8 relative">
+        {/* Hero Section with Animation */}
         <motion.div 
-          variants={itemVariants}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-4xl"
+          className="flex flex-col items-center mb-16 text-center"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
         >
-          <div className="p-6 rounded-lg bg-white/50 backdrop-blur-sm border border-gray-100 shadow-sm">
-            <div className="text-3xl font-bold text-black mb-2">150+</div>
-            <div className="text-sm text-gray-600">Countries Supported</div>
-          </div>
-          <div className="p-6 rounded-lg bg-white/50 backdrop-blur-sm border border-gray-100 shadow-sm">
-            <div className="text-3xl font-bold text-black mb-2">2 min</div>
-            <div className="text-sm text-gray-600">Average Transfer Time</div>
-          </div>
-          <div className="p-6 rounded-lg bg-white/50 backdrop-blur-sm border border-gray-100 shadow-sm">
-            <div className="text-3xl font-bold text-black mb-2">1%</div>
-            <div className="text-sm text-gray-600">Transaction Fee</div>
-          </div>
-        </motion.div>
-      </motion.div>
-
-      {/* Main Card with Animation */}
-      <motion.div
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.2 }}
-      >
-        <Card className="max-w-4xl mx-auto border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] backdrop-blur-sm bg-white/95">
-          <CardHeader>
-            <div className="flex flex-col md:flex-row justify-between items-center">
-              <div>
-                <CardTitle className="text-2xl text-center md:text-left">
-                  Get Started with RemittEase
-                </CardTitle>
-                <CardDescription className="text-center md:text-left">
-                  Create or access your wallet to start sending money globally
-                </CardDescription>
-              </div>
-              {/* Trust Indicators */}
-              <div className="flex items-center gap-4 mt-4 md:mt-0">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-gray-600">Secure & Encrypted</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm text-gray-600">Non-Custodial</span>
-                </div>
-              </div>
+          <motion.div variants={itemVariants}>
+            <Image 
+              src="/remittease-logo.png"
+              alt="RemittEase"
+              width={80}
+              height={80}
+              className="h-20 w-auto mb-8"
+              priority
+            />
+          </motion.div>
+          
+          <motion.h1 
+            variants={itemVariants}
+            className="text-4xl md:text-5xl font-bold text-black mb-4 tracking-tight"
+          >
+            Global Money Transfer Simplified
+          </motion.h1>
+          
+          <motion.p 
+            variants={itemVariants}
+            className="text-lg text-gray-600 max-w-2xl mb-12"
+          >
+            Fast, secure, and affordable cross-border transfers powered by blockchain technology
+          </motion.p>
+          
+          {/* Stats Section */}
+          <motion.div 
+            variants={itemVariants}
+            className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-4xl"
+          >
+            <div className="p-6 rounded-lg bg-white/50 backdrop-blur-sm border border-gray-100 shadow-sm">
+              <div className="text-3xl font-bold text-black mb-2">150+</div>
+              <div className="text-sm text-gray-600">Countries Supported</div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="new-user" className="space-y-6">
-              <TabsList className="grid grid-cols-2 w-full p-1 bg-gray-100 rounded-md">
-                <TabsTrigger 
-                  value="new-user" 
-                  className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md transition-all duration-200"
-                >
-                  <div className="flex items-center gap-2 py-1">
-                    <User className="w-4 h-4" />
-                    New User
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="existing-user" 
-                  className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md transition-all duration-200"
-                >
-                  <div className="flex items-center gap-2 py-1">
-                    <Wallet className="w-4 h-4" />
-                    Existing User
-                  </div>
-                </TabsTrigger>
-              </TabsList>
+            <div className="p-6 rounded-lg bg-white/50 backdrop-blur-sm border border-gray-100 shadow-sm">
+              <div className="text-3xl font-bold text-black mb-2">2 min</div>
+              <div className="text-sm text-gray-600">Average Transfer Time</div>
+            </div>
+            <div className="p-6 rounded-lg bg-white/50 backdrop-blur-sm border border-gray-100 shadow-sm">
+              <div className="text-3xl font-bold text-black mb-2">1%</div>
+              <div className="text-sm text-gray-600">Transaction Fee</div>
+            </div>
+          </motion.div>
+        </motion.div>
 
-              <TabsContent value="new-user">
-              <Form {...newUserForm}>
+        {/* Main Card with Animation */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+        >
+          <Card className="max-w-4xl mx-auto border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] backdrop-blur-sm bg-white/95">
+            <CardHeader>
+              <div className="flex flex-col md:flex-row justify-between items-center">
+                <div>
+                  <CardTitle className="text-2xl text-center md:text-left">
+                    Get Started with RemittEase
+                  </CardTitle>
+                  <CardDescription className="text-center md:text-left">
+                    Create or access your wallet to start sending money globally
+                  </CardDescription>
+                </div>
+                {/* Trust Indicators */}
+                <div className="flex items-center gap-4 mt-4 md:mt-0">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-green-600" />
+                    <span className="text-sm text-gray-600">Secure & Encrypted</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm text-gray-600">Non-Custodial</span>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="new-user" className="space-y-6">
+                <TabsList className="grid grid-cols-2 w-full p-1 bg-gray-100 rounded-md">
+                  <TabsTrigger 
+                    value="new-user" 
+                    className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-2 py-1">
+                      <User className="w-4 h-4" />
+                      New User
+                    </div>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="existing-user" 
+                    className="data-[state=active]:bg-black data-[state=active]:text-white rounded-md transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-2 py-1">
+                      <Wallet className="w-4 h-4" />
+                      Existing User
+                    </div>
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="new-user">
+                  <Form {...newUserForm}>
                     <form 
                       onSubmit={newUserForm.handleSubmit(handleCreateWallet)} 
                       className="space-y-6"
@@ -668,7 +760,9 @@ export default function HomePage() {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-sm text-gray-300">Current Balance</p>
-                      <p className="text-3xl font-bold mt-1">{walletInfo.balance} ETH</p>
+                      <p className="text-3xl font-bold mt-1">
+                        {(parseFloat(walletInfo.balance) * walletInfo.exchangeRate).toLocaleString()} {walletInfo.currency}
+                      </p>
                     </div>
                     <Wallet className="w-8 h-8" />
                   </div>
@@ -706,7 +800,7 @@ export default function HomePage() {
 
                 {/* Continue to Dashboard Button */}
                 <Button 
-                  onClick={() => router.push('/dashboard')}
+                  onClick={handleContinueToDashboard}
                   className="w-full bg-black hover:bg-gray-900 text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all duration-200"
                 >
                   <ArrowRight className="w-4 h-4 mr-2" />
@@ -749,8 +843,6 @@ export default function HomePage() {
           </motion.div>
         )}
       </div>
-
-
     </div>
   );
 }

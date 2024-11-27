@@ -1,26 +1,25 @@
-'use client';
+"use client"
 
 import React, { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Send,
-  ArrowUpRight,
-  ArrowDownRight,
-  RefreshCw,
-  Wallet,
-  Copy,
-  DollarSign,
-  Upload,
-  Download,
-  CheckCircle2,
-  AlertTriangle,
-  LogOut
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Send, ArrowUpRight, ArrowDownRight, RefreshCw, Wallet,
+  Copy, DollarSign, Upload, Download, CheckCircle2,
+  AlertTriangle, LogOut, LineChart, Settings, Bell
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
-// Types
 interface UserProfile {
   name: string;
   email: string;
@@ -45,60 +44,37 @@ interface NotificationState {
   type: 'success' | 'error' | 'warning';
 }
 
-export default function Page() {
+const chartData = [
+  { date: '2024-03-20', value: 2.4 },
+  { date: '2024-03-21', value: 1.8 },
+  { date: '2024-03-22', value: 3.2 },
+  { date: '2024-03-23', value: 2.1 },
+  { date: '2024-03-24', value: 4.5 },
+  { date: '2024-03-25', value: 3.8 },
+  { date: '2024-03-26', value: 2.9 },
+];
+
+const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [balance, setBalance] = useState('0.00');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [notification, setNotification] = useState<NotificationState>({ 
-    show: false, 
-    message: '', 
-    type: 'success' 
+  const [notification, setNotification] = useState<NotificationState>({
+    show: false,
+    message: '',
+    type: 'success'
   });
   const [providerError, setProviderError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
   const showNotification = (message: string, type: NotificationState['type'] = 'success') => {
     setNotification({ show: true, message, type });
-    setTimeout(() => {
-      setNotification(prev => ({ ...prev, show: false }));
-    }, 3000);
-  };
-
-  const fetchTransactions = async (walletAddress: string): Promise<Transaction[]> => {
-    // Mock transactions for testing
-    const mockTransactions: Transaction[] = [
-      {
-        id: '0x1234567890abcdef1',
-        type: 'received',
-        amount: '0.5',
-        currency: 'ETH',
-        from: '0x9876543210fedcba1',
-        status: 'completed',
-        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: '0x1234567890abcdef2',
-        type: 'sent',
-        amount: '0.2',
-        currency: 'ETH',
-        to: '0x9876543210fedcba2',
-        status: 'completed',
-        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-      },
-      {
-        id: '0x1234567890abcdef3',
-        type: 'received',
-        amount: '1.0',
-        currency: 'ETH',
-        from: '0x9876543210fedcba3',
-        status: 'completed',
-        date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-      }
-    ];
-
-    return mockTransactions;
+    setTimeout(() => setNotification(prev => ({ ...prev, show: false })), 3000);
   };
 
   const fetchUserData = async () => {
@@ -107,19 +83,12 @@ export default function Page() {
       setRefreshing(true);
       setErrorMessage(null);
 
-      // Fetch session data
-      const response = await fetch('/api/auth/login', {
-        method: 'GET',
-      });
-
+      const response = await fetch('/api/auth/login', { method: 'GET' });
       const data = await response.json();
 
-      if (!data.success || !data.session) {
-        throw new Error('Session not found');
-      }
+      if (!data.success || !data.session) throw new Error('Session not found');
 
       const sessionData = data.session;
-
       setProfile({
         name: sessionData.name || 'User',
         email: sessionData.email || '',
@@ -127,29 +96,35 @@ export default function Page() {
         walletAddress: sessionData.walletAddress,
       });
 
-      // Get blockchain data
-      try {
-        // Fetch balance (using mock data for now)
-        setBalance('1.5');
-
-        // Fetch transactions
-        const recentTxs = await fetchTransactions(sessionData.walletAddress);
-        setTransactions(recentTxs);
-        setProviderError(false);
-      } catch (err) {
-        console.error('Blockchain data fetch error:', err);
-        setProviderError(true);
-        showNotification('Failed to fetch blockchain data', 'error');
-      }
+      // Mock data for demo
+      setBalance('1.5');
+      setTransactions([
+        {
+          id: '0x1234567890abcdef1',
+          type: 'received',
+          amount: '0.5',
+          currency: 'ETH',
+          from: '0x9876543210fedcba1',
+          status: 'completed',
+          date: new Date().toISOString()
+        },
+        {
+          id: '0x1234567890abcdef2',
+          type: 'sent',
+          amount: '0.2',
+          currency: 'ETH',
+          to: '0x9876543210fedcba2',
+          status: 'completed',
+          date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+        }
+      ]);
 
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error('Error:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to load user data';
       setErrorMessage(errorMsg);
-      showNotification('Please log in again to continue', 'error');
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 2000);
+      showNotification('Please log in again', 'error');
+      setTimeout(() => window.location.href = '/', 2000);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -158,15 +133,9 @@ export default function Page() {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        window.location.href = '/';
-      } else {
-        showNotification('Failed to logout', 'error');
-      }
+      const response = await fetch('/api/auth/login', { method: 'DELETE' });
+      if (response.ok) window.location.href = '/';
+      else showNotification('Failed to logout', 'error');
     } catch (error) {
       console.error('Logout error:', error);
       showNotification('Failed to logout', 'error');
@@ -176,271 +145,335 @@ export default function Page() {
   const copyToClipboard = async (text: string, type: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      showNotification(`${type} copied to clipboard`);
+      showNotification(`${type} copied`);
     } catch (err) {
-      console.error('Failed to copy:', err);
-      showNotification('Failed to copy to clipboard', 'error');
+      showNotification('Failed to copy', 'error');
     }
   };
 
-  useEffect(() => {
-    fetchUserData();
-  }, []);
-
   if (loading) {
     return (
-      <div className="container mx-auto p-6 flex justify-center items-center min-h-screen">
-        <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="w-8 h-8 animate-spin" />
-          <p>Loading your dashboard...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+        <Card className="w-[300px] h-[150px] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+            <p className="text-gray-600">Loading dashboard...</p>
+          </div>
+        </Card>
       </div>
     );
   }
 
-  if (errorMessage) {
+  if (errorMessage || !profile) {
     return (
-      <div className="container mx-auto p-6 flex flex-col items-center justify-center min-h-screen gap-4">
-        <AlertTriangle className="w-12 h-12 text-yellow-500" />
-        <h2 className="text-xl font-semibold">Error Loading Dashboard</h2>
-        <p className="text-gray-600">{errorMessage}</p>
-        <Button 
-          onClick={() => fetchUserData()}
-          className="mt-4"
-        >
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="container mx-auto p-6 flex flex-col items-center justify-center min-h-screen gap-4">
-        <AlertTriangle className="w-12 h-12 text-yellow-500" />
-        <h2 className="text-xl font-semibold">Session Expired</h2>
-        <p className="text-gray-600">Please log in again to access your dashboard</p>
-        <Button 
-          onClick={() => window.location.href = '/'}
-          className="mt-4"
-        >
-          Return to Login
-        </Button>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+        <Card className="w-[400px]">
+          <CardContent className="pt-6 flex flex-col items-center gap-4">
+            <AlertTriangle className="w-12 h-12 text-yellow-500" />
+            <h2 className="text-xl font-semibold">{errorMessage || 'Session Expired'}</h2>
+            <p className="text-gray-600 text-center">Please log in again to continue</p>
+            <Button 
+              onClick={() => window.location.href = '/'}
+              className="w-full mt-4"
+            >
+              Return to Login
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Network Status Alert */}
-      {providerError && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-          <div className="flex items-center">
-            <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2" />
-            <p className="text-sm text-yellow-700">
-              Unable to connect to blockchain network. Some features may be limited.
-            </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+      <div className="container mx-auto p-6">
+        {/* Top Navigation */}
+        <div className="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+              {profile.name.charAt(0)}
+            </div>
+            <div>
+              <h2 className="font-semibold">{profile.name}</h2>
+              <p className="text-sm text-gray-500">{profile.email}</p>
+            </div>
+            <Badge variant="outline" className="ml-2">{profile.currency}</Badge>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Bell className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[300px]">
+                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <ScrollArea className="h-[300px]">
+                  <div className="p-4 text-sm text-gray-500">No new notifications</div>
+                </ScrollArea>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <Button variant="destructive" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
           </div>
         </div>
-      )}
+
+        <div className="grid grid-cols-12 gap-6">
+          {/* Main Content */}
+          <div className="col-span-12 lg:col-span-8 space-y-6">
+            {/* Balance Card */}
+            <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white">
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-blue-100">Total Balance</p>
+                    <h2 className="text-4xl font-bold mt-2">{balance} ETH</h2>
+                    <p className="text-blue-100 mt-1">
+                      ≈ ${(parseFloat(balance) * 3000).toFixed(2)}
+                    </p>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    className="text-white hover:text-blue-100"
+                    onClick={fetchUserData}
+                    disabled={refreshing}
+                  >
+                    <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+
+                {/* Chart */}
+                <div className="h-48 mt-6">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="gradientArea" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#fff" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#fff" stopOpacity={0.1} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="#fff" 
+                        tickFormatter={(str) => new Date(str).toLocaleDateString()} 
+                      />
+                      <YAxis stroke="#fff" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          color: '#1e40af',
+                          borderRadius: '8px',
+                          border: 'none'
+                        }}
+                      />
+                      <Area 
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#fff"
+                        fill="url(#gradientArea)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { icon: Send, label: 'Send', color: 'bg-blue-50 text-blue-600' },
+                { icon: Download, label: 'Receive', color: 'bg-green-50 text-green-600' },
+                { icon: Upload, label: 'Deposit', color: 'bg-purple-50 text-purple-600' },
+                { icon: DollarSign, label: 'Exchange', color: 'bg-orange-50 text-orange-600' }
+              ].map((action, i) => (
+                <Button
+                  key={i}
+                  variant="ghost"
+                  className={`h-24 flex flex-col items-center justify-center gap-2 ${action.color} hover:brightness-95`}
+                  onClick={() => window.location.href = `/${action.label.toLowerCase()}`}
+                >
+                  <action.icon className="h-6 w-6" />
+                  <span>{action.label}</span>
+                </Button>
+              ))}
+            </div>
+
+            {/* Transactions */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Recent Transactions</CardTitle>
+                  <CardDescription>Your latest transfers</CardDescription>
+                </div>
+                <Button variant="ghost" size="sm">View All</Button>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[400px] pr-4">
+                  <div className="space-y-4">
+                    {transactions.map((tx) => (
+                      <div 
+                        key={tx.id} 
+                        className="flex items-center justify-between p-4 rounded-lg border bg-white hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`p-2 rounded-full ${
+                            tx.type === 'sent' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                          }`}>
+                            {tx.type === 'sent' ? 
+                              <ArrowUpRight className="h-4 w-4" /> : 
+                              <ArrowDownRight className="h-4 w-4" />
+                            }
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {tx.type === 'sent' ? 
+                                `Sent to ${tx.to?.slice(0, 6)}...${tx.to?.slice(-4)}` : 
+                                `Received from ${tx.from?.slice(0, 6)}...${tx.from?.slice(-4)}`
+                              }
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {new Date(tx.date).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-medium ${
+                            tx.type === 'sent' ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {tx.type === 'sent' ? '-' : '+'}{tx.amount} {tx.currency}
+                          </p>
+                          <Badge 
+                            variant={tx.status === 'completed' ? 'default' : 'secondary'}
+                            className="mt-1"
+                          >
+                            {tx.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Sidebar */}
+          {/* Right Sidebar */}
+          <div className="col-span-12 lg:col-span-4 space-y-6">
+            {/* Wallet Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5" />
+                  Wallet Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Address</p>
+                  <div className="flex items-center justify-between">
+                    <code className="text-sm break-all">
+                      {profile.walletAddress}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(profile.walletAddress, "Address")}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Network</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">
+                      {process.env.NEXT_PUBLIC_ENV === 'production' 
+                        ? 'Ethereum Mainnet' 
+                        : 'Sepolia Testnet'}
+                    </p>
+                    <Badge variant="outline">Live</Badge>
+                  </div>
+                </div>
+                
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Status</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">
+                      {providerError ? 'Disconnected' : 'Connected'}
+                    </p>
+                    <div className={`h-3 w-3 rounded-full ${
+                      providerError ? 'bg-red-500' : 'bg-green-500'
+                    }`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Analytics</CardTitle>
+                <CardDescription>Transaction overview</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { label: 'Total Sent', value: '2.5 ETH', change: '+12.5%' },
+                  { label: 'Total Received', value: '4.0 ETH', change: '+8.2%' },
+                  { label: 'Average Transaction', value: '0.8 ETH', change: '-2.1%' }
+                ].map((stat, i) => (
+                  <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-sm text-gray-500">{stat.label}</p>
+                      <p className="font-medium">{stat.value}</p>
+                    </div>
+                    <Badge variant={stat.change.startsWith('+') ? 'default' : 'destructive'}>
+                      {stat.change}
+                    </Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Network Status Alert */}
+            {providerError && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                <div className="flex items-center">
+                  <AlertTriangle className="h-5 w-5 text-yellow-400 mr-2" />
+                  <p className="text-sm text-yellow-700">
+                    Network connection issues detected. Some features may be limited.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-sm text-gray-500">
+          Last updated: {new Date().toLocaleString()}
+        </div>
+      </div>
 
       {/* Notification */}
       {notification.show && (
-        <div className={`fixed top-4 right-4 p-3 rounded-lg shadow-lg flex items-center gap-2 animate-slide-up z-50
+        <div className={`
+          fixed bottom-4 right-4 p-4 rounded-lg shadow-lg 
+          flex items-center gap-2 animate-slide-up z-50
           ${notification.type === 'success' ? 'bg-green-100 text-green-700' : ''}
           ${notification.type === 'error' ? 'bg-red-100 text-red-700' : ''}
-          ${notification.type === 'warning' ? 'bg-yellow-100 text-yellow-700' : ''}`}
-        >
+          ${notification.type === 'warning' ? 'bg-yellow-100 text-yellow-700' : ''}
+        `}>
           <CheckCircle2 className="h-4 w-4" />
           {notification.message}
         </div>
       )}
-
-      {/* Header with Logout */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-3xl font-bold">Welcome, {profile.name}</h1>
-          <Badge variant="outline" className="text-blue-600 bg-blue-50">
-            {profile.currency}
-          </Badge>
-        </div>
-        <div className="flex items-center space-x-4">
-          <Button 
-            variant="outline" 
-            className="flex items-center space-x-2"
-            onClick={() => fetchUserData()}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-          </Button>
-          <Button 
-            variant="destructive" 
-            onClick={handleLogout}
-            className="flex items-center space-x-2"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            <span>Logout</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Wallet Information */}
-      <Card className="hover:shadow-lg transition-all">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Your Wallet
-          </CardTitle>
-          <CardDescription>Manage your RemittEase wallet and funds</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col space-y-1">
-            <span className="text-sm text-muted-foreground">Wallet Address</span>
-            <div className="flex items-center justify-between bg-muted p-3 rounded-lg">
-              <code className="text-sm">{profile.walletAddress}</code>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => copyToClipboard(profile.walletAddress, "Wallet address")}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex flex-col space-y-1">
-            <span className="text-sm text-muted-foreground">Current Balance</span>
-            <div className="bg-muted p-3 rounded-lg">
-              <div className="text-2xl font-bold">{balance} ETH</div>
-              <div className="text-sm text-muted-foreground">
-                ≈ {(parseFloat(balance) * (profile.currency === 'USD' ? 3000 : 55000)).toFixed(2)} {profile.currency}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Button 
-          onClick={() => window.location.href = '/send'}
-          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700"
-          disabled={providerError}
-        >
-          <Send className="w-6 h-6" />
-          <span>Send Money</span>
-        </Button>
-        
-        <Button 
-          onClick={() => window.location.href = '/receive'}
-          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-green-50 hover:bg-green-100 text-green-700"
-        >
-          <Download className="w-6 h-6" />
-          <span>Receive</span>
-        </Button>
-        
-        <Button 
-          onClick={() => window.location.href = '/deposit'}
-          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-purple-50 hover:bg-purple-100 text-purple-700"
-          disabled={providerError}
-        >
-          <Upload className="w-6 h-6" />
-          <span>Deposit</span>
-        </Button>
-        
-        <Button 
-          onClick={() => window.location.href = '/exchange'}
-          className="flex-1 p-6 h-auto flex flex-col items-center gap-2 bg-orange-50 hover:bg-orange-100 text-orange-700"
-        >
-          <DollarSign className="w-6 h-6" />
-          <span>Exchange</span>
-        </Button>
-      </div>
-
-      {/* Transaction History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
-          <CardDescription>Your latest money transfers</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {transactions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                {providerError ? 'Unable to load transactions' : 'No transactions yet'}
-              </div>
-            ) : (
-              transactions.map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent">
-                  <div className="flex items-center space-x-4">
-                    <div className={`p-2 rounded-full ${
-                      tx.type === 'sent' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-                    }`}>
-                      {tx.type === 'sent' ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                    </div>
-                    <div>
-                      <p className="font-medium">
-                        {tx.type === 'sent' ? `Sent to ${tx.to}` : `Received from ${tx.from}`}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(tx.date).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-medium ${tx.type === 'sent' ? 'text-red-600' : 'text-green-600'}`}>
-                      {tx.type === 'sent' ? '-' : '+'}{tx.amount} {tx.currency}
-                    </p>
-                    <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>
-                      {tx.status}
-                    </Badge>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Network Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Network Status</CardTitle>
-          <CardDescription>Current blockchain network status</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-              <div>
-                <p className="text-sm text-muted-foreground">Connection Status</p>
-                <p className="font-medium">
-                  {providerError ? 'Disconnected' : 'Connected'}
-                </p>
-              </div>
-              <div className={`h-3 w-3 rounded-full ${
-                providerError ? 'bg-red-500' : 'bg-green-500'
-              }`} />
-            </div>
-            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-              <div>
-                <p className="text-sm text-muted-foreground">Network</p>
-                <p className="font-medium">
-                  {process.env.NEXT_PUBLIC_ENV === 'production' 
-                    ? 'Ethereum Mainnet' 
-                    : 'Sepolia Testnet'}
-                </p>
-              </div>
-              <Badge variant="outline">Live</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Footer with last update time */}
-      <div className="text-center text-sm text-muted-foreground">
-        Last updated: {new Date().toLocaleString()}
-      </div>
 
       <style jsx global>{`
         @keyframes slide-up {
@@ -461,3 +494,5 @@ export default function Page() {
     </div>
   );
 }
+
+export default DashboardPage;

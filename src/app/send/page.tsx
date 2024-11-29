@@ -60,7 +60,7 @@ interface BankFormProps {
 const countries: Country[] = [
   { code: 'USD', name: 'United States', flag: '🇺🇸', rate: 1, methods: ['bank', 'card', 'wallet'] },
   { code: 'ZAR', name: 'South Africa', flag: '🇿🇦', rate: 18.5, methods: ['bank', 'wallet', 'mobile'] },
-  { code: 'NGN', name: 'Nigeria', flag: '🇳🇬', rate: 1550, methods: ['bank', 'mobile'] },
+  { code: 'NGN', name: 'Nigeria', flag: '🇳🇬', rate: 550, methods: ['bank', 'mobile'] },
   { code: 'KES', name: 'Kenya', flag: '🇰🇪', rate: 130, methods: ['mobile', 'wallet'] },
   { code: 'GHS', name: 'Ghana', flag: '🇬🇭', rate: 12.5, methods: ['mobile', 'bank'] }
 ];
@@ -74,11 +74,8 @@ const getCurrencySymbol = (currency: string): string => {
 
 const formatAmount = (amount: string | number, currency: string): string => {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2
-  }).format(num);
+  const symbol = getCurrencySymbol(currency);
+  return `${symbol}${num.toFixed(2)}`;
 };
 
 const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack }) => {
@@ -88,7 +85,9 @@ const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack 
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Recipient's Full Name and Bank Name */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Recipient's Full Name */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Recipient's Full Name</label>
           <Input
@@ -100,7 +99,7 @@ const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack 
             <p className="text-sm text-red-500">{errors.recipientName.message}</p>
           )}
         </div>
-
+        {/* Bank Name */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Bank Name</label>
           <Input
@@ -113,8 +112,9 @@ const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack 
           )}
         </div>
       </div>
-
+      {/* Account Number and Sort Code */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Account Number */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Account Number</label>
           <Input
@@ -126,7 +126,7 @@ const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack 
             <p className="text-sm text-red-500">{errors.accountNumber.message}</p>
           )}
         </div>
-
+        {/* Sort Code */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Sort Code</label>
           <Input
@@ -139,7 +139,7 @@ const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack 
           )}
         </div>
       </div>
-
+      {/* SWIFT/BIC Code */}
       <div className="space-y-2">
         <label className="text-sm font-medium">SWIFT/BIC Code</label>
         <Input
@@ -151,7 +151,7 @@ const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack 
           <p className="text-sm text-red-500">{errors.swiftCode.message}</p>
         )}
       </div>
-
+      {/* IBAN */}
       <div className="space-y-2">
         <label className="text-sm font-medium">IBAN</label>
         <Input
@@ -163,7 +163,7 @@ const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack 
           <p className="text-sm text-red-500">{errors.iban.message}</p>
         )}
       </div>
-
+      {/* Payment Reference */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Payment Reference</label>
         <Input
@@ -175,7 +175,7 @@ const BankDetailsForm: React.FC<BankFormProps> = ({ onSubmit, toCountry, onBack 
           <p className="text-sm text-red-500">{errors.reference.message}</p>
         )}
       </div>
-
+      {/* Buttons */}
       <div className="flex gap-4">
         <Button type="button" variant="outline" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -244,6 +244,7 @@ const SuccessModal = ({
   isOpen,
   onClose,
   amount,
+  amountAfterFees,
   fromCurrency,
   toCurrency,
   recipient
@@ -251,6 +252,7 @@ const SuccessModal = ({
   isOpen: boolean;
   onClose: () => void;
   amount: string;
+  amountAfterFees: string | undefined;
   fromCurrency: string;
   toCurrency: string;
   recipient: RecipientDetails | null;
@@ -344,7 +346,9 @@ const SuccessModal = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-400">Recipient Gets</span>
-                  <span className="font-medium text-green-600">{formatAmount(parseFloat(amount), toCurrency)}</span>
+                  <span className="font-medium text-green-600">
+                    {formatAmount(parseFloat(amountAfterFees || '0'), toCurrency)}
+                  </span>
                 </div>
                 {recipient.type === 'bank' && recipient.bankDetails && (
                   <div className="pt-2 border-t">
@@ -411,8 +415,9 @@ export default function SendMoneyPage() {
 
   const calculateFees = () => {
     if (!amount) return;
-    const networkFee = parseFloat(amount) * 0.001;
-    const serviceFee = parseFloat(amount) * 0.005;
+    const amountNum = parseFloat(amount);
+    const networkFee = amountNum * 0.001;
+    const serviceFee = amountNum * 0.005;
     setFees({
       network: networkFee,
       service: serviceFee,
@@ -429,10 +434,13 @@ export default function SendMoneyPage() {
     const rate = to.rate / from.rate;
     const amountInFiat = parseFloat(amount);
     const convertedAmount = amountInFiat * rate;
+    const feesInRecipientCurrency = fees.total * rate;
+    const amountAfterFees = convertedAmount - feesInRecipientCurrency;
+
     return {
       rate: rate.toFixed(4),
       convertedAmount: convertedAmount.toFixed(2),
-      amountAfterFees: (convertedAmount - fees.total).toFixed(2)
+      amountAfterFees: amountAfterFees.toFixed(2)
     };
   };
 
@@ -476,14 +484,6 @@ export default function SendMoneyPage() {
         description: "Your money is on its way to the recipient"
       });
 
-      setTimeout(() => {
-        setCurrentStep(1);
-        setFromCountry('');
-        setToCountry('');
-        setAmount('');
-        setRecipientType('');
-        setRecipientDetails(null);
-      }, 2000);
     } catch (error) {
       setTransactionStatus(prev => ({
         ...prev,
@@ -497,6 +497,16 @@ export default function SendMoneyPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+    setCurrentStep(1);
+    setFromCountry('');
+    setToCountry('');
+    setAmount('');
+    setRecipientType('');
+    setRecipientDetails(null);
   };
 
   const conversion = calculateRate();
@@ -594,9 +604,9 @@ export default function SendMoneyPage() {
               {/* Amount Step */}
               {currentStep === 1 && (
                 <motion.div {...fadeInUp} className="space-y-6">
-                  {/* Amount step content */}
-                  {/* Include the full code for the Amount step here */}
-                  <div className="grid grid-cols-2 gap-6">
+                  {/* Currency Selection */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* From Currency */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">From</label>
                       <Select onValueChange={setFromCountry} value={fromCountry}>
@@ -624,7 +634,7 @@ export default function SendMoneyPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
+                    {/* To Currency */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium">To</label>
                       <Select onValueChange={setToCountry} value={toCountry}>
@@ -653,7 +663,7 @@ export default function SendMoneyPage() {
                       </Select>
                     </div>
                   </div>
-
+                  {/* Amount Input */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Amount</label>
                     <div className="relative">
@@ -676,7 +686,7 @@ export default function SendMoneyPage() {
                       </div>
                     </div>
                   </div>
-
+                  {/* Conversion Summary */}
                   {conversion && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
@@ -705,7 +715,7 @@ export default function SendMoneyPage() {
                       </div>
                     </motion.div>
                   )}
-
+                  {/* Continue Button */}
                   <Button
                     onClick={() => setCurrentStep(2)}
                     disabled={!fromCountry || !toCountry || !amount}
@@ -720,9 +730,8 @@ export default function SendMoneyPage() {
               {/* Recipient Step */}
               {currentStep === 2 && (
                 <motion.div {...fadeInUp} className="space-y-6">
-                  {/* Recipient step content */}
-                  {/* Include the full code for the Recipient step here */}
-                  <div className="grid grid-cols-3 gap-4">
+                  {/* Recipient Type Selection */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {[
                       { type: 'bank', icon: Building, label: 'Bank Account' },
                       { type: 'wallet', icon: Wallet, label: 'Crypto Wallet' },
@@ -739,7 +748,7 @@ export default function SendMoneyPage() {
                       </Button>
                     ))}
                   </div>
-
+                  {/* Recipient Details Form */}
                   {recipientType === 'bank' && (
                     <BankDetailsForm
                       onSubmit={handleBankDetailsSubmit}
@@ -763,13 +772,22 @@ export default function SendMoneyPage() {
                           }}
                         />
                       </div>
-                      <Button
-                        onClick={() => setCurrentStep(3)}
-                        className="w-full h-12"
-                      >
-                        Continue
-                        <ArrowRight className="ml-2 w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setRecipientType('')}
+                        >
+                          <ArrowLeft className="mr-2 h-4 w-4" />
+                          Back
+                        </Button>
+                        <Button
+                          onClick={() => setCurrentStep(3)}
+                          className="flex-1"
+                        >
+                          Continue
+                          <ArrowRight className="ml-2 w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -788,13 +806,22 @@ export default function SendMoneyPage() {
                           }}
                         />
                       </div>
-                      <Button
-                        onClick={() => setCurrentStep(3)}
-                        className="w-full h-12"
-                      >
-                        Continue
-                        <ArrowRight className="ml-2 w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setRecipientType('')}
+                        >
+                          <ArrowLeft className="mr-2 h-4 w-4" />
+                          Back
+                        </Button>
+                        <Button
+                          onClick={() => setCurrentStep(3)}
+                          className="flex-1"
+                        >
+                          Continue
+                          <ArrowRight className="ml-2 w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </motion.div>
@@ -803,8 +830,7 @@ export default function SendMoneyPage() {
               {/* Review Step */}
               {currentStep === 3 && (
                 <motion.div {...fadeInUp} className="space-y-6">
-                  {/* Review step content */}
-                  {/* Include the full code for the Review step here */}
+                  {/* Transfer Summary */}
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6">
                     <h3 className="text-lg font-medium mb-6">Transfer Summary</h3>
 
@@ -927,8 +953,9 @@ export default function SendMoneyPage() {
       {/* Render the SuccessModal here */}
       <SuccessModal
         isOpen={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
+        onClose={handleCloseSuccessModal}
         amount={amount}
+        amountAfterFees={conversion?.amountAfterFees}
         fromCurrency={fromCountry}
         toCurrency={toCountry}
         recipient={recipientDetails}
